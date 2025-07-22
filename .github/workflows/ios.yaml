@@ -6,7 +6,7 @@ on:
       repo:
         description: "Repo"
         required: true
-        default: "AppFlowy-IO/AppFlowy"
+        default: "xiaomabiji/AppFlowy"
       branch:
         description: "Branch"
         required: true
