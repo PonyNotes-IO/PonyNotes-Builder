@@ -18,7 +18,7 @@ on:
         type: boolean
         default: false
       appflowyVersion:
-        description: "AppFlowy Release version (leave empty for latest)"
+        description: "PonyNotes Release version (leave empty for latest)"
         required: false
         type: string
       releaseVersionNumber:
@@ -26,12 +26,12 @@ on:
         required: false
         type: string
       repoOwner:
-        description: "Repository owner (leave empty for AppFlowy)"
+        description: "Repository owner (leave empty for PonyNotes)"
         required: false
         type: string
         default: "AppFlowy-IO"
       repoName:
-        description: "Repository name (leave empty for AppFlowy)"
+        description: "Repository name (leave empty for PonyNotes)"
         required: false
         type: string
         default: "AppFlowy"
@@ -118,8 +118,8 @@ jobs:
           echo '<?xml version="1.0" encoding="UTF-8"?>' > $APPCAST_FILE_NAME
           echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">' >> $APPCAST_FILE_NAME
           echo '    <channel>' >> $APPCAST_FILE_NAME
-          echo '        <title>AppFlowy</title>' >> $APPCAST_FILE_NAME
-          echo '        <description>Most recent updates to AppFlowy</description>' >> $APPCAST_FILE_NAME
+          echo '        <title>PonyNotes</title>' >> $APPCAST_FILE_NAME
+          echo '        <description>Most recent updates to PonyNotes</description>' >> $APPCAST_FILE_NAME
           echo '        <language>en</language>' >> $APPCAST_FILE_NAME
           echo '        <item>' >> $APPCAST_FILE_NAME
           echo "            <title>Version $RELEASE_VERSION_NUMBER</title>" >> $APPCAST_FILE_NAME

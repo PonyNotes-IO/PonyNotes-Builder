@@ -1,4 +1,4 @@
-name: Build AppFlowy macOS
+name: Build PonyNotes macOS
 
 on:
   workflow_dispatch:
@@ -127,20 +127,25 @@ jobs:
           echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
 
 
-      - name: Build AppFlowy (x86_64)
+      - name: Build PonyNotes (x86_64)
         working-directory: frontend
         run: |
-          echo "🔧 Building AppFlowy for x86_64 (Intel)"
+          echo "🔧 Building PonyNotes for x86_64 (Intel)"
           echo "Architecture: $(uname -m)"
           echo "Rust targets: $(rustup target list --installed)"
           
           flutter config --enable-macos-desktop
-          dart ./scripts/flutter_release_build/build_flowy.dart run . ${{ inputs.build_name }}
+          
+          # Use x86_64 specific build profile
+          cargo make --profile production-mac-x86_64 appflowy-core-dev-macos
+          
+          cd appflowy_flutter
+          flutter build macos --release --verbose
           
           echo "✅ x86_64 build completed"
           ls -la appflowy_flutter/product/${{ inputs.build_name }}/macos/Release/
 
-      - name: Codesign AppFlowy
+      - name: Codesign PonyNotes
         continue-on-error: true
         run: |
           if [ -z "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" ]; then
@@ -148,7 +153,7 @@ jobs:
             exit 0
           fi
           
-          echo "✍️ Code signing AppFlowy app..."
+          echo "✍️ Code signing PonyNotes app..."
           echo ${{ secrets.MACOS_CERTIFICATE_BASE64 }} | base64 --decode > certificate.p12
           security create-keychain -p action build.keychain
           security default-keychain -s build.keychain
@@ -193,7 +198,7 @@ jobs:
           
           echo "✅ DMG created successfully"
 
-      - name: Notarize AppFlowy
+      - name: Notarize PonyNotes
         run: |
           xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
 
@@ -343,7 +348,7 @@ jobs:
           echo "✅ aarch64 build completed"
           ls -la appflowy_flutter/product/${{ inputs.build_name }}/macos/Release/
 
-      - name: Codesign AppFlowy
+      - name: Codesign PonyNotes
         continue-on-error: true
         run: |
           if [ -z "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" ]; then
@@ -351,7 +356,7 @@ jobs:
             exit 0
           fi
           
-          echo "✍️ Code signing AppFlowy app..."
+          echo "✍️ Code signing PonyNotes app..."
           echo ${{ secrets.MACOS_CERTIFICATE_BASE64 }} | base64 --decode > certificate.p12
           security create-keychain -p action build.keychain
           security default-keychain -s build.keychain
@@ -396,7 +401,7 @@ jobs:
           
           echo "✅ DMG created successfully"
 
-      - name: Notarize AppFlowy
+      - name: Notarize PonyNotes
         run: |
           xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
 
@@ -547,7 +552,7 @@ jobs:
           echo "✅ Universal build completed"
           ls -la appflowy_flutter/product/${{ inputs.build_name }}/macos/Release/
 
-      - name: Codesign AppFlowy
+      - name: Codesign PonyNotes
         continue-on-error: true
         run: |
           if [ -z "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" ]; then
@@ -555,7 +560,7 @@ jobs:
             exit 0
           fi
           
-          echo "✍️ Code signing AppFlowy app..."
+          echo "✍️ Code signing PonyNotes app..."
           echo ${{ secrets.MACOS_CERTIFICATE_BASE64 }} | base64 --decode > certificate.p12
           security create-keychain -p action build.keychain
           security default-keychain -s build.keychain
@@ -614,7 +619,7 @@ jobs:
             echo "available=true" >> $GITHUB_OUTPUT;
           fi
 
-      - name: Notarize AppFlowy
+      - name: Notarize PonyNotes
         if: ${{ steps.secret-check.outputs.available == 'true' }}
         run: |
           xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait

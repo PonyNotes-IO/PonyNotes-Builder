@@ -1,4 +1,4 @@
-name: Build AppFlowy Linux
+name: Build PonyNotes Linux
 
 on:
   workflow_dispatch:
@@ -62,11 +62,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       LINUX_APP_RELEASE_PATH: frontend/appflowy_flutter/product/${{ inputs.build_name }}/linux/Release
-      LINUX_ZIP_NAME: AppFlowy-${{ inputs.build_name }}-linux.tar.gz
-      LINUX_PACKAGE_DEB_NAME: AppFlowy-${{ inputs.build_name }}-linux-x86_64.deb
-      LINUX_PACKAGE_RPM_NAME: AppFlowy-${{ inputs.build_name }}-linux-x86_64.rpm
-      LINUX_PACKAGE_TMP_RPM_NAME: AppFlowy-${{ inputs.build_name }}-2.x86_64.rpm
-      LINUX_PACKAGE_APPIMAGE_NAME: AppFlowy-${{ inputs.build_name }}-linux-x86_64.AppImage
+      LINUX_ZIP_NAME: PonyNotes-${{ inputs.build_name }}-linux.tar.gz
+      LINUX_PACKAGE_DEB_NAME: PonyNotes-${{ inputs.build_name }}-linux-x86_64.deb
+      LINUX_PACKAGE_RPM_NAME: PonyNotes-${{ inputs.build_name }}-linux-x86_64.rpm
+      LINUX_PACKAGE_TMP_RPM_NAME: PonyNotes-${{ inputs.build_name }}-2.x86_64.rpm
+      LINUX_PACKAGE_APPIMAGE_NAME: PonyNotes-${{ inputs.build_name }}-linux-x86_64.AppImage
 
     steps:
       # the following step is required to avoid running out of space
@@ -138,7 +138,7 @@ jobs:
           git config --global credential.helper store
           echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
 
-      - name: Build AppFlowy
+      - name: Build PonyNotes
         working-directory: frontend
         run: |
           flutter config --enable-linux-desktop
@@ -212,13 +212,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.LINUX_PACKAGE_APPIMAGE_NAME}}
-          path: frontend/AppFlowy-${{ inputs.build_name }}-x86_64.AppImage
+          path: frontend/PonyNotes-${{ inputs.build_name }}-x86_64.AppImage
 
       - name: Upload AppImage to Release
         if: inputs.upload_url != ''
         run: |
           filename="${{ env.LINUX_PACKAGE_APPIMAGE_NAME }}"
-          filepath="frontend/AppFlowy-${{ inputs.build_name }}-x86_64.AppImage"
+          filepath="frontend/PonyNotes-${{ inputs.build_name }}-x86_64.AppImage"
           
           # URL encode the filename
           encoded_filename=$(echo -n "$filename" | jq -sRr @uri)

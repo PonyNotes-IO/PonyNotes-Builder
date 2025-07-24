@@ -1,4 +1,4 @@
-name: Build AppFlowy Windows
+name: Build PonyNotes Windows
 
 on:
   workflow_dispatch:
@@ -54,8 +54,8 @@ jobs:
   build:
     env:
       WINDOWS_APP_RELEASE_PATH: frontend\appflowy_flutter\product\${{ inputs.build_name }}\windows
-      WINDOWS_ZIP_NAME: AppFlowy-${{ inputs.build_name }}-windows-x86_64.zip
-      WINDOWS_INSTALLER_NAME: AppFlowy-${{ inputs.build_name }}-windows-x86_64
+      WINDOWS_ZIP_NAME: PonyNotes-${{ inputs.build_name }}-windows-x86_64.zip
+      WINDOWS_INSTALLER_NAME: PonyNotes-${{ inputs.build_name }}-windows-x86_64
 
     runs-on: windows-latest
 
