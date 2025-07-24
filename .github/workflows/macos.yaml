@@ -135,15 +135,12 @@ jobs:
           echo "Rust targets: $(rustup target list --installed)"
           
           flutter config --enable-macos-desktop
-          
-          # Use official build script for x86_64
           dart ./scripts/flutter_release_build/build_flowy.dart run . ${{ inputs.build_name }}
           
           echo "✅ x86_64 build completed"
           ls -la appflowy_flutter/product/${{ inputs.build_name }}/macos/Release/
 
       - name: Codesign PonyNotes
-        continue-on-error: true
         run: |
           if [ -z "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" ]; then
             echo "⚠️ Skipping code signing - MACOS_CERTIFICATE_BASE64 not set"
@@ -170,13 +167,9 @@ jobs:
       - name: Create macOS dmg
         run: |
           brew install create-dmg
-          
-          # Clean up any existing temporary files
-          rm -f "${{ env.MACOS_APP_RELEASE_PATH }}"/*.dmg
-          rm -f /tmp/rw.*.dmg
-          
-          # Create DMG with better error handling
-          create-dmg \
+          i=0
+          until [[ -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; do
+            create-dmg \
             --volname ${{ env.MACOS_DMG_NAME }} \
             --hide-extension "PonyNotes.app" \
             --background frontend/scripts/dmg_assets/AppFlowyInstallerBackground.jpg \
@@ -185,17 +178,16 @@ jobs:
             --icon "PonyNotes.app" 141 249 \
             --app-drop-link 458 249 \
             "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" \
-            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app"
-          
-          # Verify DMG was created successfully
-          if [[ ! -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; then
-            echo "❌ Failed to create DMG file"
-            exit 1
-          fi
-          
-          echo "✅ DMG created successfully"
+            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" || true
+            if [[ $i -eq 10 ]]; then
+              echo 'Error: create-dmg did not succeed even after 10 tries.'
+              exit 1
+            fi
+            i=$((i+1))
+          done
 
       - name: Notarize PonyNotes
+        continue-on-error: true
         run: |
           xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
 
@@ -262,7 +254,7 @@ jobs:
             --fail-with-body
 
   aarch64:
-    runs-on: macos-14
+    runs-on: macos-latest
 
     if: ${{ inputs.arch == 'All' || inputs.arch == 'aarch64' }}
 
@@ -330,20 +322,13 @@ jobs:
           echo "Architecture: $(uname -m)"
           echo "Rust targets: $(rustup target list --installed)"
           
-          # Set environment variables for ARM64 build
-          export ARCHFLAGS="-arch arm64"
-          export RUSTFLAGS="-C target-cpu=apple-m1"
-          
           flutter config --enable-macos-desktop
-          
-          # Use official build script for ARM64
           dart ./scripts/flutter_release_build/build_flowy.dart run . ${{ inputs.build_name }}
           
           echo "✅ aarch64 build completed"
           ls -la appflowy_flutter/product/${{ inputs.build_name }}/macos/Release/
 
       - name: Codesign PonyNotes
-        continue-on-error: true
         run: |
           if [ -z "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" ]; then
             echo "⚠️ Skipping code signing - MACOS_CERTIFICATE_BASE64 not set"
@@ -370,13 +355,9 @@ jobs:
       - name: Create macOS dmg
         run: |
           brew install create-dmg
-          
-          # Clean up any existing temporary files
-          rm -f "${{ env.MACOS_APP_RELEASE_PATH }}"/*.dmg
-          rm -f /tmp/rw.*.dmg
-          
-          # Create DMG with better error handling
-          create-dmg \
+          i=0
+          until [[ -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; do
+            create-dmg \
             --volname ${{ env.MACOS_DMG_NAME }} \
             --hide-extension "PonyNotes.app" \
             --background frontend/scripts/dmg_assets/AppFlowyInstallerBackground.jpg \
@@ -385,17 +366,16 @@ jobs:
             --icon "PonyNotes.app" 141 249 \
             --app-drop-link 458 249 \
             "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" \
-            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app"
-          
-          # Verify DMG was created successfully
-          if [[ ! -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; then
-            echo "❌ Failed to create DMG file"
-            exit 1
-          fi
-          
-          echo "✅ DMG created successfully"
+            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" || true
+            if [[ $i -eq 10 ]]; then
+              echo 'Error: create-dmg did not succeed even after 10 tries.'
+              exit 1
+            fi
+            i=$((i+1))
+          done
 
       - name: Notarize PonyNotes
+        continue-on-error: true
         run: |
           xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
 
@@ -411,6 +391,7 @@ jobs:
 
       - name: Upload DMG
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: ${{ env.MACOS_DMG_NAME }}.dmg
           path: ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg
@@ -547,7 +528,6 @@ jobs:
           ls -la appflowy_flutter/product/${{ inputs.build_name }}/macos/Release/
 
       - name: Codesign PonyNotes
-        continue-on-error: true
         run: |
           if [ -z "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" ]; then
             echo "⚠️ Skipping code signing - MACOS_CERTIFICATE_BASE64 not set"
@@ -574,13 +554,9 @@ jobs:
       - name: Create macOS dmg
         run: |
           brew install create-dmg
-          
-          # Clean up any existing temporary files
-          rm -f "${{ env.MACOS_APP_RELEASE_PATH }}"/*.dmg
-          rm -f /tmp/rw.*.dmg
-          
-          # Create DMG with better error handling
-          create-dmg \
+          i=0
+          until [[ -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; do
+            create-dmg \
             --volname ${{ env.MACOS_DMG_NAME }} \
             --hide-extension "PonyNotes.app" \
             --background frontend/scripts/dmg_assets/AppFlowyInstallerBackground.jpg \
@@ -589,15 +565,13 @@ jobs:
             --icon "PonyNotes.app" 141 249 \
             --app-drop-link 458 249 \
             "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" \
-            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app"
-          
-          # Verify DMG was created successfully
-          if [[ ! -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; then
-            echo "❌ Failed to create DMG file"
-            exit 1
-          fi
-          
-          echo "✅ DMG created successfully"
+            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" || true
+            if [[ $i -eq 10 ]]; then
+              echo 'Error: create-dmg did not succeed even after 10 tries.'
+              exit 1
+            fi
+            i=$((i+1))
+          done
 
       - name: Check for Secret availability
         id: secret-check
@@ -615,6 +589,7 @@ jobs:
 
       - name: Notarize PonyNotes
         if: ${{ steps.secret-check.outputs.available == 'true' }}
+        continue-on-error: true
         run: |
           xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
 
