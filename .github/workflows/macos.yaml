@@ -168,9 +168,13 @@ jobs:
       - name: Create macOS dmg
         run: |
           brew install create-dmg
-          i=0
-          until [[ -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; do
-            create-dmg \
+          
+          # Clean up any existing temporary files
+          rm -f "${{ env.MACOS_APP_RELEASE_PATH }}"/*.dmg
+          rm -f /tmp/rw.*.dmg
+          
+          # Create DMG with better error handling
+          create-dmg \
             --volname ${{ env.MACOS_DMG_NAME }} \
             --hide-extension "PonyNotes.app" \
             --background frontend/scripts/dmg_assets/AppFlowyInstallerBackground.jpg \
@@ -179,13 +183,15 @@ jobs:
             --icon "PonyNotes.app" 141 249 \
             --app-drop-link 458 249 \
             "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" \
-            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" || true
-            if [[ $i -eq 10 ]]; then
-              echo 'Error: create-dmg did not succeed even after 10 tries.'
-              exit 1
-            fi
-            i=$((i+1))
-          done
+            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app"
+          
+          # Verify DMG was created successfully
+          if [[ ! -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; then
+            echo "❌ Failed to create DMG file"
+            exit 1
+          fi
+          
+          echo "✅ DMG created successfully"
 
       - name: Notarize AppFlowy
         run: |
@@ -356,9 +362,13 @@ jobs:
       - name: Create macOS dmg
         run: |
           brew install create-dmg
-          i=0
-          until [[ -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; do
-            create-dmg \
+          
+          # Clean up any existing temporary files
+          rm -f "${{ env.MACOS_APP_RELEASE_PATH }}"/*.dmg
+          rm -f /tmp/rw.*.dmg
+          
+          # Create DMG with better error handling
+          create-dmg \
             --volname ${{ env.MACOS_DMG_NAME }} \
             --hide-extension "PonyNotes.app" \
             --background frontend/scripts/dmg_assets/AppFlowyInstallerBackground.jpg \
@@ -367,13 +377,15 @@ jobs:
             --icon "PonyNotes.app" 141 249 \
             --app-drop-link 458 249 \
             "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" \
-            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" || true
-            if [[ $i -eq 10 ]]; then
-              echo 'Error: create-dmg did not succeed even after 10 tries.'
-              exit 1
-            fi
-            i=$((i+1))
-          done
+            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app"
+          
+          # Verify DMG was created successfully
+          if [[ ! -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; then
+            echo "❌ Failed to create DMG file"
+            exit 1
+          fi
+          
+          echo "✅ DMG created successfully"
 
       - name: Notarize AppFlowy
         run: |
@@ -554,9 +566,13 @@ jobs:
       - name: Create macOS dmg
         run: |
           brew install create-dmg
-          i=0
-          until [[ -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; do
-            create-dmg \
+          
+          # Clean up any existing temporary files
+          rm -f "${{ env.MACOS_APP_RELEASE_PATH }}"/*.dmg
+          rm -f /tmp/rw.*.dmg
+          
+          # Create DMG with better error handling
+          create-dmg \
             --volname ${{ env.MACOS_DMG_NAME }} \
             --hide-extension "PonyNotes.app" \
             --background frontend/scripts/dmg_assets/AppFlowyInstallerBackground.jpg \
@@ -565,13 +581,15 @@ jobs:
             --icon "PonyNotes.app" 141 249 \
             --app-drop-link 458 249 \
             "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" \
-            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" || true
-            if [[ $i -eq 10 ]]; then
-              echo 'Error: create-dmg did not succeed even after 10 tries.'
-              exit 1
-            fi
-            i=$((i+1))
-          done
+            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app"
+          
+          # Verify DMG was created successfully
+          if [[ ! -e "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" ]]; then
+            echo "❌ Failed to create DMG file"
+            exit 1
+          fi
+          
+          echo "✅ DMG created successfully"
 
       - name: Check for Secret availability
         id: secret-check
