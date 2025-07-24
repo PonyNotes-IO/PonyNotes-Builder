@@ -137,7 +137,7 @@ jobs:
           flutter config --enable-macos-desktop
           
           # Use x86_64 specific build profile
-          cargo make --profile production-mac-x86_64 appflowy-core-dev-macos
+          cargo make --profile production-mac-x86_64 appflowy-core-release
           
           cd appflowy_flutter
           flutter build macos --release --verbose
@@ -340,7 +340,7 @@ jobs:
           flutter config --enable-macos-desktop
           
           # Use ARM64 specific build profile
-          cargo make --profile production-mac-arm64 appflowy-core-dev-macos
+          cargo make --profile production-mac-arm64 appflowy-core-release
           
           cd appflowy_flutter
           flutter build macos --release --verbose
