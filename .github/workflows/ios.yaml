@@ -109,6 +109,18 @@ jobs:
           # apply provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
+          
+          # Debug: List provisioning profiles
+          echo "🔍 Available provisioning profiles:"
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
+          
+          # Debug: Check certificate info
+          echo "🔍 Certificate info:"
+          security find-identity -v -p codesigning $KEYCHAIN_PATH
+          
+          # Debug: Check provisioning profile
+          echo "🔍 Provisioning profile info:"
+          security cms -D -i $PP_PATH | grep -A 5 -B 5 "com.ioi.ponynotes" || echo "Bundle ID not found in provisioning profile"
 
       - name: Install Rust toolchain
         id: rust_toolchain
@@ -161,7 +173,8 @@ jobs:
           cargo make --profile production-ios-arm64 code_generation
 
           cd appflowy_flutter
-          flutter build ipa --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+          # 确保使用正确的 Bundle ID
+          flutter build ipa --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate --dart-define=BUNDLE_ID=com.ioi.ponynotes
 
       - name: Upload ipa
         uses: actions/upload-artifact@v4
