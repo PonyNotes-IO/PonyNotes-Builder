@@ -1,6 +1,6 @@
-# AppFlowy Builder
+# PyonNotes Builder
 
-AppFlowy Builder is a tool designed to streamline the process of building and deploying AppFlowy applications across multiple platforms. This document outlines the necessary steps and requirements to use this tool effectively.
+PyonNotes Builder is a tool designed to streamline the process of building and deploying AppFlowy applications across multiple platforms. This document outlines the necessary steps and requirements to use this tool effectively.
 
 ## Getting Started
 
