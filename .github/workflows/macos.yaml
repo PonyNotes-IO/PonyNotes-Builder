@@ -6,7 +6,7 @@ on:
       repo:
         description: "Repo"
         required: true
-        default: "xiaomabiji/AppFlowy"
+        default: "PonyNotes-IO/PonyNotes"
       branch:
         description: "Branch"
         required: true
