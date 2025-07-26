@@ -83,11 +83,33 @@ jobs:
 
       - name: Install the Apple certificate and provisioning profile
         env:
-          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64_NEW }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD_NEW }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64_NEW }}
           IOS_KEYCHAIN_PASSWORD: ${{ secrets.IOS_KEYCHAIN_PASSWORD }}
         run: |
+          # Debug: Check if secrets are properly set (without exposing values)
+          echo "🔍 Checking GitHub Secrets status:"
+          echo "IOS_CERTIFICATE_BASE64 length: ${#IOS_CERTIFICATE_BASE64}"
+          echo "P12_PASSWORD length: ${#P12_PASSWORD}"
+          echo "IOS_PROVISION_PROFILE_BASE64 length: ${#IOS_PROVISION_PROFILE_BASE64}"
+          echo "IOS_KEYCHAIN_PASSWORD length: ${#IOS_KEYCHAIN_PASSWORD}"
+          
+          # Check if any secrets are empty
+          if [ -z "$IOS_CERTIFICATE_BASE64" ]; then
+            echo "❌ IOS_CERTIFICATE_BASE64 is empty!"
+            exit 1
+          fi
+          
+          if [ -z "$P12_PASSWORD" ]; then
+            echo "❌ P12_PASSWORD is empty!"
+            exit 1
+          fi
+          
+          if [ -z "$IOS_PROVISION_PROFILE_BASE64" ]; then
+            echo "❌ IOS_PROVISION_PROFILE_BASE64 is empty!"
+            exit 1
+          fi
           # create variables
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
@@ -102,6 +124,23 @@ jobs:
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
+          # Debug: Check certificate file before import
+          echo "🔍 Analyzing certificate file before import..."
+          echo "Certificate file size: $(ls -la $CERTIFICATE_PATH | awk '{print $5}') bytes"
+          
+          # Extract certificate info from the p12 file directly (with fallback methods)
+          echo "📋 Certificate info from p12 file:"
+          
+          # Try with legacy flag first
+          if openssl pkcs12 -in $CERTIFICATE_PATH -clcerts -nokeys -legacy -passin pass:"$P12_PASSWORD" 2>/dev/null | openssl x509 -serial -subject -dates -noout 2>/dev/null; then
+            echo "✅ Certificate info extracted successfully with legacy method"
+          elif openssl pkcs12 -in $CERTIFICATE_PATH -clcerts -nokeys -passin pass:"$P12_PASSWORD" 2>/dev/null | openssl x509 -serial -subject -dates -noout 2>/dev/null; then
+            echo "✅ Certificate info extracted successfully without legacy flag"
+          else
+            echo "⚠️ Could not extract certificate info with OpenSSL, but file exists and has correct size"
+            echo "This is likely due to OpenSSL version compatibility, but certificate import should still work"
+          fi
+          
           # import certificate to keychain
           echo "📥 Importing certificate..."
           security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH || {
@@ -140,6 +179,56 @@ jobs:
           # Debug: Check certificate info
           echo "🔍 Certificate info:"
           security find-identity -v -p codesigning $KEYCHAIN_PATH
+          
+          # Get detailed certificate information using reliable macOS commands
+          echo "🔍 Detailed certificate analysis:"
+          CERT_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Apple Development" | head -1 | awk '{print $2}')
+          if [ ! -z "$CERT_IDENTITY" ]; then
+            echo "Certificate SHA-1: $CERT_IDENTITY"
+            
+            # Use security command to get certificate details (more reliable on macOS)
+            echo "📋 Certificate details from keychain:"
+            security find-certificate -c "$CERT_IDENTITY" -p $KEYCHAIN_PATH > /tmp/cert.pem 2>/dev/null
+            if [ -f /tmp/cert.pem ]; then
+              # Extract serial number using multiple methods for reliability
+              echo "🔍 Extracting certificate serial number..."
+              
+              # Method 1: Using openssl (try both with and without legacy)
+              SERIAL_OPENSSL=""
+              if command -v openssl >/dev/null 2>&1; then
+                SERIAL_OPENSSL=$(openssl x509 -in /tmp/cert.pem -serial -noout 2>/dev/null | cut -d= -f2)
+                if [ -z "$SERIAL_OPENSSL" ]; then
+                  echo "⚠️ OpenSSL method failed, this is expected on some macOS versions"
+                fi
+              fi
+              
+              # Method 2: Using security command to dump certificate info
+              echo "🔍 Using macOS security command for certificate info..."
+              security find-certificate -c "$CERT_IDENTITY" -Z $KEYCHAIN_PATH 2>/dev/null || echo "Could not get certificate fingerprint"
+              
+              # Show what we found
+              if [ ! -z "$SERIAL_OPENSSL" ]; then
+                echo "📋 Certificate Serial Number: $SERIAL_OPENSSL"
+                
+                # Check if this matches our expected new certificate
+                if [ "$SERIAL_OPENSSL" = "1B6BD133C9D349B16B4CBE1220F1AEB2" ]; then
+                  echo "✅ This is the NEW certificate we expect!"
+                elif [ "$SERIAL_OPENSSL" = "8D0FD88C9E453FEE4E63CCEB3A5464B" ]; then
+                  echo "❌ This is the OLD certificate - GitHub Secret not updated!"
+                else
+                  echo "⚠️ This is a different certificate: $SERIAL_OPENSSL"
+                fi
+              else
+                echo "⚠️ Could not extract serial number, but certificate was imported successfully"
+              fi
+              
+              rm -f /tmp/cert.pem
+            else
+              echo "⚠️ Could not extract certificate to PEM format, but certificate exists in keychain"
+            fi
+          else
+            echo "❌ No Apple Development certificate found in keychain!"
+          fi
           
           # Check certificate validity
           echo "🔍 Certificate validity check:"
@@ -198,6 +287,57 @@ jobs:
           PP_UUID=$(cat /tmp/profile_content.plist | grep -A 1 "<key>UUID</key>" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
           echo "PROVISIONING_PROFILE_UUID=$PP_UUID" >> $GITHUB_ENV
           echo "🔧 Will use UUID for Xcode: $PP_UUID"
+          
+          # Verify certificate is included in provisioning profile using reliable commands
+          echo "🔍 Verifying certificate is included in provisioning profile..."
+          CERT_SHA1=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Apple Development" | head -1 | awk '{print $2}')
+          if [ ! -z "$CERT_SHA1" ]; then
+            echo "🔍 Certificate SHA-1 in keychain: $CERT_SHA1"
+            
+            # Check if SHA-1 is in provisioning profile
+            if cat /tmp/profile_content.plist | grep -q "$CERT_SHA1"; then
+              echo "✅ Certificate SHA-1 found in provisioning profile"
+            else
+              echo "❌ Certificate SHA-1 NOT found in provisioning profile!"
+            fi
+            
+            # Check for expected certificate serial numbers (both uppercase and lowercase)
+            echo "🔍 Checking for certificate serial numbers in provisioning profile..."
+            
+            # Check for new certificate (try both cases)
+            if cat /tmp/profile_content.plist | grep -qi "1b6bd133c9d349b16b4cbe1220f1aeb2"; then
+              echo "✅ NEW certificate serial number found in provisioning profile"
+            else
+              echo "❌ NEW certificate serial number NOT found in provisioning profile"
+            fi
+            
+            # Check for old certificate (try both cases)
+            if cat /tmp/profile_content.plist | grep -qi "8d0fd88c9e453fee4e63cceb3a5464b"; then
+              echo "⚠️ OLD certificate serial number found in provisioning profile"
+            else
+              echo "✅ OLD certificate serial number not in provisioning profile"
+            fi
+            
+            # Show what certificates are actually in the provisioning profile
+            echo "🔍 Certificates found in provisioning profile:"
+            CERT_COUNT=1
+            cat /tmp/profile_content.plist | grep -A 1 "DeveloperCertificates" -A 1000 | grep -o '<data>[^<]*</data>' | head -3 | while read cert_data; do
+              echo "Certificate #$CERT_COUNT:"
+              cert_base64=$(echo "$cert_data" | sed 's/<data>\(.*\)<\/data>/\1/')
+              
+              # Try to extract serial number with error handling
+              if echo "$cert_base64" | base64 -d | openssl x509 -serial -noout 2>/dev/null; then
+                echo "✅ Successfully parsed certificate"
+              else
+                echo "⚠️ Could not parse certificate with OpenSSL (compatibility issue)"
+                echo "Certificate data length: $(echo "$cert_base64" | wc -c) characters"
+              fi
+              echo "---"
+              CERT_COUNT=$((CERT_COUNT + 1))
+            done
+          else
+            echo "❌ No certificate SHA-1 found in keychain!"
+          fi
 
       - name: Install Rust toolchain
         id: rust_toolchain
