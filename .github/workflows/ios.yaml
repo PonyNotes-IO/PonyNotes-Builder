@@ -182,7 +182,7 @@ jobs:
           
           # Get detailed certificate information using reliable macOS commands
           echo "🔍 Detailed certificate analysis:"
-          CERT_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Apple Development" | head -1 | awk '{print $2}')
+          CERT_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep -E "(Apple Development|iPhone Developer)" | head -1 | awk '{print $2}')
           if [ ! -z "$CERT_IDENTITY" ]; then
             echo "Certificate SHA-1: $CERT_IDENTITY"
             
@@ -226,9 +226,9 @@ jobs:
             else
               echo "⚠️ Could not extract certificate to PEM format, but certificate exists in keychain"
             fi
-          else
-            echo "❌ No Apple Development certificate found in keychain!"
-          fi
+                      else
+              echo "❌ No Apple Development or iPhone Developer certificate found in keychain!"
+            fi
           
           # Check certificate validity
           echo "🔍 Certificate validity check:"
@@ -290,7 +290,7 @@ jobs:
           
           # Verify certificate is included in provisioning profile using reliable commands
           echo "🔍 Verifying certificate is included in provisioning profile..."
-          CERT_SHA1=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Apple Development" | head -1 | awk '{print $2}')
+          CERT_SHA1=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep -E "(Apple Development|iPhone Developer)" | head -1 | awk '{print $2}')
           if [ ! -z "$CERT_SHA1" ]; then
             echo "🔍 Certificate SHA-1 in keychain: $CERT_SHA1"
             
@@ -337,6 +337,8 @@ jobs:
             done
           else
             echo "❌ No certificate SHA-1 found in keychain!"
+            echo "Available certificates:"
+            security find-identity -v -p codesigning $KEYCHAIN_PATH || echo "No certificates found"
           fi
 
       - name: Install Rust toolchain
