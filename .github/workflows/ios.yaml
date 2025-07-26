@@ -103,8 +103,18 @@ jobs:
           security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
           # import certificate to keychain
-          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          echo "📥 Importing certificate..."
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH || {
+            echo "❌ Failed to import certificate!"
+            echo "This could mean:"
+            echo "1. The certificate file is corrupted"
+            echo "2. The password is incorrect"
+            echo "3. The certificate format is invalid"
+            exit 1
+          }
+          
           security list-keychain -d user -s $KEYCHAIN_PATH
+          echo "✅ Certificate imported successfully"
 
           # apply provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
@@ -118,9 +128,47 @@ jobs:
           echo "🔍 Certificate info:"
           security find-identity -v -p codesigning $KEYCHAIN_PATH
           
-          # Debug: Check provisioning profile
+          # Check certificate validity
+          echo "🔍 Certificate validity check:"
+          CERT_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep "Apple Development" | head -1 | awk '{print $2}')
+          if [ ! -z "$CERT_IDENTITY" ]; then
+            security show-certificates -c "$CERT_IDENTITY" | grep -E "(Subject|Validity)"
+            
+            # Check if certificate is valid for code signing
+            security verify-cert -c "$CERT_IDENTITY" -p codeSign || {
+              echo "❌ Certificate is not valid for code signing!"
+              echo "Please check if the certificate has expired or been revoked."
+              exit 1
+            }
+            echo "✅ Certificate is valid for code signing"
+          else
+            echo "❌ No Apple Development certificate found!"
+            exit 1
+          fi
+          
+          # Debug: Check provisioning profile and get its name
           echo "🔍 Provisioning profile info:"
-          security cms -D -i $PP_PATH | grep -A 5 -B 5 "com.ioi.ponynotes" || echo "Bundle ID not found in provisioning profile"
+          security cms -D -i $PP_PATH > /tmp/profile_content.plist
+          cat /tmp/profile_content.plist | grep -A 5 -B 5 "com.ioi.ponynotes" || echo "Bundle ID not found in provisioning profile"
+          
+          # Extract provisioning profile name
+          PROFILE_NAME=$(cat /tmp/profile_content.plist | grep -A 1 "<key>Name</key>" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
+          echo "🔍 Provisioning profile name: '$PROFILE_NAME'"
+          
+          # Check profile validity
+          echo "🔍 Profile expiration date:"
+          cat /tmp/profile_content.plist | grep -A 1 "ExpirationDate"
+          
+          # Check Team ID in profile
+          echo "🔍 Team ID in profile:"
+          cat /tmp/profile_content.plist | grep -A 1 "TeamIdentifier" | tail -1
+          
+          # Verify Bundle ID matches
+          echo "🔍 App ID Prefix in profile:"
+          cat /tmp/profile_content.plist | grep -A 1 "ApplicationIdentifierPrefix" | tail -1
+          
+          # Set provisioning profile name for later use
+          echo "PROVISIONING_PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
 
       - name: Install Rust toolchain
         id: rust_toolchain
@@ -173,8 +221,13 @@ jobs:
           cargo make --profile production-ios-arm64 code_generation
 
           cd appflowy_flutter
-          # 确保使用正确的 Bundle ID
-          flutter build ipa --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate --dart-define=BUNDLE_ID=com.ioi.ponynotes
+          # 使用手动签名构建 IPA，指定 provisioning profile
+          flutter build ipa \
+            --build-name ${{ inputs.build_name }} \
+            --build-number ${{ inputs.build_number }} \
+            --split-debug-info=./debug_info \
+            --obfuscate \
+            --export-options-plist=ios/ExportOptions.plist
 
       - name: Upload ipa
         uses: actions/upload-artifact@v4
