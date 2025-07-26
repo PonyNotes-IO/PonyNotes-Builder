@@ -142,164 +142,13 @@ jobs:
           fi
           
           # import certificate to keychain
-          echo "📥 Importing certificate..."
-          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH || {
-            echo "❌ Failed to import certificate!"
-            echo "This could mean:"
-            echo "1. The certificate file is corrupted"
-            echo "2. The password is incorrect"
-            echo "3. The certificate format is invalid"
-            exit 1
-          }
-          
+          security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
           echo "✅ Certificate imported successfully"
 
           # apply provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
-          
-          # Rename the provisioning profile to match expected name
-          PP_NAME=$(security cms -D -i $PP_PATH | grep -A 1 "<key>Name</key>" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
-          echo "🔄 Renaming provisioning profile from '$PP_NAME' to match configuration..."
-          
-          # Get the UUID of the provisioning profile
-          PP_UUID=$(security cms -D -i $PP_PATH | grep -A 1 "<key>UUID</key>" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
-          echo "📋 Provisioning profile UUID: $PP_UUID"
-          
-          # Copy with UUID as filename (this is how Xcode expects it)
-          cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/$PP_UUID.mobileprovision
-          
-          echo "✅ Provisioning profile installed with UUID: $PP_UUID"
-          
-          # Debug: List provisioning profiles
-          echo "🔍 Available provisioning profiles:"
-          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/
-          
-          # Debug: Check certificate info
-          echo "🔍 Certificate info:"
-          security find-identity -v -p codesigning $KEYCHAIN_PATH
-          
-                    # Get certificate information for verification
-          echo "🔍 Certificate verification:"
-          CERT_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep -E "(Apple Development|iPhone Developer)" | head -1 | awk '{print $2}')
-          if [ ! -z "$CERT_IDENTITY" ]; then
-            echo "✅ Certificate found - SHA-1: $CERT_IDENTITY"
-            
-            # Try to get certificate serial number for verification (non-critical)
-            echo "🔍 Attempting to verify certificate serial number..."
-            if security find-certificate -Z "$CERT_IDENTITY" -p $KEYCHAIN_PATH > /tmp/cert.pem 2>/dev/null; then
-              SERIAL_OPENSSL=$(openssl x509 -in /tmp/cert.pem -serial -noout 2>/dev/null | cut -d= -f2 || echo "")
-              if [ ! -z "$SERIAL_OPENSSL" ]; then
-                echo "📋 Certificate Serial: $SERIAL_OPENSSL"
-                if [ "$SERIAL_OPENSSL" = "1B6BD133C9D349B16B4CBE1220F1AEB2" ]; then
-                  echo "✅ Confirmed: Using the NEW certificate!"
-                else
-                  echo "⚠️ Note: Certificate serial differs from expected, but this may be normal"
-                fi
-              else
-                echo "⚠️ Could not extract serial number (non-critical)"
-              fi
-              rm -f /tmp/cert.pem
-            else
-              echo "⚠️ Could not extract certificate details (non-critical)"
-            fi
-            
-            echo "✅ Certificate is ready for code signing"
-          else
-            echo "❌ No signing certificate found in keychain!"
-            echo "Available certificates:"
-            security find-identity -v -p codesigning $KEYCHAIN_PATH || echo "No certificates found"
-            echo "⚠️ This may cause signing to fail, but continuing..."
-          fi
-          
-          # Check certificate validity
-          echo "🔍 Certificate validity check:"
-          CERT_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep -E "(Apple Development|iPhone Developer)" | head -1 | awk '{print $2}')
-          if [ ! -z "$CERT_IDENTITY" ]; then
-            echo "Found certificate: $CERT_IDENTITY"
-            
-            # Try to verify certificate using different approach
-            security find-certificate -Z "$CERT_IDENTITY" -p $KEYCHAIN_PATH > /tmp/cert.pem 2>/dev/null || {
-              echo "⚠️ Could not extract certificate details, but certificate was imported successfully"
-            }
-            
-            if [ -f /tmp/cert.pem ]; then
-              echo "🔍 Certificate details:"
-              openssl x509 -in /tmp/cert.pem -text -noout | grep -E "(Subject:|Not Before|Not After)" || echo "Certificate info extracted successfully"
-              rm -f /tmp/cert.pem
-            fi
-            
-            echo "✅ Certificate is available for code signing"
-          else
-            echo "❌ No signing certificate found!"
-            echo "Available certificates:"
-            security find-identity -v -p codesigning $KEYCHAIN_PATH || echo "No certificates found"
-            echo "⚠️ This may cause signing to fail, but continuing with build..."
-          fi
-          
-          # Debug: Check provisioning profile and get its name
-          echo "🔍 Provisioning profile info:"
-          security cms -D -i $PP_PATH > /tmp/profile_content.plist
-          
-          # Extract provisioning profile name
-          PROFILE_NAME=$(cat /tmp/profile_content.plist | grep -A 1 "<key>Name</key>" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
-          echo "🔍 Provisioning profile name: '$PROFILE_NAME'"
-          
-          # Check if Bundle ID exists in profile
-          if cat /tmp/profile_content.plist | grep -q "com.ioi.ponynotes"; then
-            echo "✅ Bundle ID 'com.ioi.ponynotes' found in provisioning profile"
-          else
-            echo "❌ Bundle ID 'com.ioi.ponynotes' NOT found in provisioning profile"
-            echo "Available App IDs in profile:"
-            cat /tmp/profile_content.plist | grep -A 1 "application-identifier" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/'
-          fi
-          
-          # Check Team ID in profile
-          TEAM_ID_IN_PROFILE=$(cat /tmp/profile_content.plist | grep -A 1 "TeamIdentifier" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
-          echo "🔍 Team ID in profile: $TEAM_ID_IN_PROFILE"
-          
-          if [ "$TEAM_ID_IN_PROFILE" = "5MC7J2V78W" ]; then
-            echo "✅ Team ID matches"
-          else
-            echo "❌ Team ID mismatch! Expected: 5MC7J2V78W, Found: $TEAM_ID_IN_PROFILE"
-          fi
-          
-          # Set provisioning profile name and UUID for later use
-          echo "PROVISIONING_PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
-          
-          # Get UUID from the profile for Xcode configuration
-          PP_UUID=$(cat /tmp/profile_content.plist | grep -A 1 "<key>UUID</key>" | tail -1 | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
-          echo "PROVISIONING_PROFILE_UUID=$PP_UUID" >> $GITHUB_ENV
-          echo "🔧 Will use UUID for Xcode: $PP_UUID"
-          
-          # Basic verification that certificate and profile are compatible (non-critical)
-          echo "🔍 Basic compatibility check..."
-          CERT_SHA1=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep -E "(Apple Development|iPhone Developer)" | head -1 | awk '{print $2}')
-          if [ ! -z "$CERT_SHA1" ]; then
-            echo "🔍 Certificate SHA-1: $CERT_SHA1"
-            
-            # Basic compatibility check (non-critical)
-            if cat /tmp/profile_content.plist | grep -q "$CERT_SHA1"; then
-              echo "✅ Certificate appears to be compatible with provisioning profile"
-            else
-              echo "⚠️ Certificate SHA-1 not found in profile (may still work)"
-            fi
-            
-            # Quick check for expected certificate serial
-            if cat /tmp/profile_content.plist | grep -qi "1b6bd133c9d349b16b4cbe1220f1aeb2"; then
-              echo "✅ Expected certificate serial found in provisioning profile"
-            else
-              echo "⚠️ Expected certificate serial not found (may still work)"
-            fi
-          else
-            echo "❌ No certificate SHA-1 found in keychain!"
-            echo "Available certificates:"
-            security find-identity -v -p codesigning $KEYCHAIN_PATH || echo "No certificates found"
-          fi
-          
-          echo "🏁 Certificate and provisioning profile setup completed"
-          echo "Proceeding with build process..."
 
       - name: Install Rust toolchain
         id: rust_toolchain
@@ -343,27 +192,6 @@ jobs:
           git config --global credential.helper store
           echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
 
-      - name: Update Xcode project with correct provisioning profile
-        working-directory: frontend/appflowy_flutter
-        run: |
-          echo "🔧 Updating Xcode project with provisioning profile UUID: $PROVISIONING_PROFILE_UUID"
-          
-          # Update project.pbxproj with the actual provisioning profile UUID
-          sed -i '' "s/PROVISIONING_PROFILE_SPECIFIER = \"pony-ios-profile\";/PROVISIONING_PROFILE_SPECIFIER = \"$PROVISIONING_PROFILE_UUID\";/g" ios/Runner.xcodeproj/project.pbxproj
-          
-          # Update ExportOptions.plist with the actual provisioning profile name
-          echo "🔧 Updating ExportOptions.plist with provisioning profile name: $PROVISIONING_PROFILE_NAME"
-          sed -i '' "s/<string>pony-ios-profile<\/string>/<string>$PROVISIONING_PROFILE_NAME<\/string>/g" ios/ExportOptions.plist
-          
-          echo "✅ Updated Xcode project and export options configuration"
-          
-          # Verify the changes
-          echo "🔍 Verifying configuration changes:"
-          echo "Project configuration:"
-          grep -n "PROVISIONING_PROFILE_SPECIFIER" ios/Runner.xcodeproj/project.pbxproj | head -3
-          echo "Export options:"
-          grep -A 3 -B 1 "provisioningProfiles" ios/ExportOptions.plist
-
       - name: Build PonyNotes
         working-directory: frontend
         run: |
@@ -373,34 +201,13 @@ jobs:
           cargo make --profile production-ios-arm64 code_generation
 
           cd appflowy_flutter
-          
-          # Clean any previous build artifacts
-          echo "🧹 Cleaning previous build artifacts..."
-          flutter clean
-          rm -rf build/
-          rm -rf ios/build/
-          
-          # Create custom build directory in workspace (has write permissions)
-          CUSTOM_BUILD_DIR="$GITHUB_WORKSPACE/xcode_build"
-          mkdir -p "$CUSTOM_BUILD_DIR"
-          echo "📁 Using custom build directory: $CUSTOM_BUILD_DIR"
-          
-          # 使用手动签名构建 IPA，通过额外参数控制构建位置
-          flutter build ipa \
-            --build-name ${{ inputs.build_name }} \
-            --build-number ${{ inputs.build_number }} \
-            --split-debug-info=./debug_info \
-            --obfuscate \
-            --export-options-plist=ios/ExportOptions.plist \
-            -- \
-            -derivedDataPath "$CUSTOM_BUILD_DIR/DerivedData" \
-            -archivePath "$CUSTOM_BUILD_DIR/Runner.xcarchive"
+          flutter build ipa --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
 
       - name: Upload ipa
         uses: actions/upload-artifact@v4
         with:
           name: PonyNotes-${{ inputs.build_name }}.xcarchive
-          path: ${{ github.workspace }}/xcode_build/Runner.xcarchive
+          path: frontend/appflowy_flutter/build/ios/archive/Runner.xcarchive
 
       - name: Upload debug symbols
         uses: actions/upload-artifact@v4
@@ -413,12 +220,12 @@ jobs:
         run: |
           # First, we need to export the IPA from the xcarchive
           xcodebuild -exportArchive \
-            -archivePath "${{ github.workspace }}/xcode_build/Runner.xcarchive" \
-            -exportPath "${{ github.workspace }}/xcode_build/ipa" \
+            -archivePath "frontend/appflowy_flutter/build/ios/archive/Runner.xcarchive" \
+            -exportPath "frontend/appflowy_flutter/build/ios/ipa" \
             -exportOptionsPlist "frontend/appflowy_flutter/ios/ExportOptions.plist" || {
               echo "Warning: IPA export failed. Uploading xcarchive instead."
               # If IPA export fails, upload the xcarchive
-              cd "${{ github.workspace }}/xcode_build"
+              cd frontend/appflowy_flutter/build/ios/archive
               zip -r "PonyNotes-${{ inputs.build_name }}.xcarchive.zip" Runner.xcarchive
               
               filename="PonyNotes-${{ inputs.build_name }}.xcarchive.zip"
@@ -445,11 +252,11 @@ jobs:
           
           # If we get here, IPA export succeeded
           filename="PonyNotes-${{ inputs.build_name }}.ipa"
-          filepath="${{ github.workspace }}/xcode_build/ipa/Runner.ipa"
+          filepath="frontend/appflowy_flutter/build/ios/ipa/Runner.ipa"
           
           # Rename the IPA file
-          mv "$filepath" "${{ github.workspace }}/xcode_build/ipa/$filename"
-          filepath="${{ github.workspace }}/xcode_build/ipa/$filename"
+          mv "$filepath" "frontend/appflowy_flutter/build/ios/ipa/$filename"
+          filepath="frontend/appflowy_flutter/build/ios/ipa/$filename"
           
           # URL encode the filename
           encoded_filename=$(echo -n "$filename" | jq -sRr @uri)
