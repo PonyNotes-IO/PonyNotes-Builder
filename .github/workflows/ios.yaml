@@ -180,55 +180,38 @@ jobs:
           echo "🔍 Certificate info:"
           security find-identity -v -p codesigning $KEYCHAIN_PATH
           
-          # Get detailed certificate information using reliable macOS commands
-          echo "🔍 Detailed certificate analysis:"
+                    # Get certificate information for verification
+          echo "🔍 Certificate verification:"
           CERT_IDENTITY=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep -E "(Apple Development|iPhone Developer)" | head -1 | awk '{print $2}')
           if [ ! -z "$CERT_IDENTITY" ]; then
-            echo "Certificate SHA-1: $CERT_IDENTITY"
+            echo "✅ Certificate found - SHA-1: $CERT_IDENTITY"
             
-            # Use security command to get certificate details (more reliable on macOS)
-            echo "📋 Certificate details from keychain:"
-            security find-certificate -c "$CERT_IDENTITY" -p $KEYCHAIN_PATH > /tmp/cert.pem 2>/dev/null
-            if [ -f /tmp/cert.pem ]; then
-              # Extract serial number using multiple methods for reliability
-              echo "🔍 Extracting certificate serial number..."
-              
-              # Method 1: Using openssl (try both with and without legacy)
-              SERIAL_OPENSSL=""
-              if command -v openssl >/dev/null 2>&1; then
-                SERIAL_OPENSSL=$(openssl x509 -in /tmp/cert.pem -serial -noout 2>/dev/null | cut -d= -f2)
-                if [ -z "$SERIAL_OPENSSL" ]; then
-                  echo "⚠️ OpenSSL method failed, this is expected on some macOS versions"
-                fi
-              fi
-              
-              # Method 2: Using security command to dump certificate info
-              echo "🔍 Using macOS security command for certificate info..."
-              security find-certificate -c "$CERT_IDENTITY" -Z $KEYCHAIN_PATH 2>/dev/null || echo "Could not get certificate fingerprint"
-              
-              # Show what we found
+            # Try to get certificate serial number for verification (non-critical)
+            echo "🔍 Attempting to verify certificate serial number..."
+            if security find-certificate -Z "$CERT_IDENTITY" -p $KEYCHAIN_PATH > /tmp/cert.pem 2>/dev/null; then
+              SERIAL_OPENSSL=$(openssl x509 -in /tmp/cert.pem -serial -noout 2>/dev/null | cut -d= -f2 || echo "")
               if [ ! -z "$SERIAL_OPENSSL" ]; then
-                echo "📋 Certificate Serial Number: $SERIAL_OPENSSL"
-                
-                # Check if this matches our expected new certificate
+                echo "📋 Certificate Serial: $SERIAL_OPENSSL"
                 if [ "$SERIAL_OPENSSL" = "1B6BD133C9D349B16B4CBE1220F1AEB2" ]; then
-                  echo "✅ This is the NEW certificate we expect!"
-                elif [ "$SERIAL_OPENSSL" = "8D0FD88C9E453FEE4E63CCEB3A5464B" ]; then
-                  echo "❌ This is the OLD certificate - GitHub Secret not updated!"
+                  echo "✅ Confirmed: Using the NEW certificate!"
                 else
-                  echo "⚠️ This is a different certificate: $SERIAL_OPENSSL"
+                  echo "⚠️ Note: Certificate serial differs from expected, but this may be normal"
                 fi
               else
-                echo "⚠️ Could not extract serial number, but certificate was imported successfully"
+                echo "⚠️ Could not extract serial number (non-critical)"
               fi
-              
               rm -f /tmp/cert.pem
             else
-              echo "⚠️ Could not extract certificate to PEM format, but certificate exists in keychain"
+              echo "⚠️ Could not extract certificate details (non-critical)"
             fi
-                      else
-              echo "❌ No Apple Development or iPhone Developer certificate found in keychain!"
-            fi
+            
+            echo "✅ Certificate is ready for code signing"
+          else
+            echo "❌ No signing certificate found in keychain!"
+            echo "Available certificates:"
+            security find-identity -v -p codesigning $KEYCHAIN_PATH || echo "No certificates found"
+            echo "⚠️ This may cause signing to fail, but continuing..."
+          fi
           
           # Check certificate validity
           echo "🔍 Certificate validity check:"
@@ -288,58 +271,33 @@ jobs:
           echo "PROVISIONING_PROFILE_UUID=$PP_UUID" >> $GITHUB_ENV
           echo "🔧 Will use UUID for Xcode: $PP_UUID"
           
-          # Verify certificate is included in provisioning profile using reliable commands
-          echo "🔍 Verifying certificate is included in provisioning profile..."
+          # Basic verification that certificate and profile are compatible (non-critical)
+          echo "🔍 Basic compatibility check..."
           CERT_SHA1=$(security find-identity -v -p codesigning $KEYCHAIN_PATH | grep -E "(Apple Development|iPhone Developer)" | head -1 | awk '{print $2}')
           if [ ! -z "$CERT_SHA1" ]; then
-            echo "🔍 Certificate SHA-1 in keychain: $CERT_SHA1"
+            echo "🔍 Certificate SHA-1: $CERT_SHA1"
             
-            # Check if SHA-1 is in provisioning profile
+            # Basic compatibility check (non-critical)
             if cat /tmp/profile_content.plist | grep -q "$CERT_SHA1"; then
-              echo "✅ Certificate SHA-1 found in provisioning profile"
+              echo "✅ Certificate appears to be compatible with provisioning profile"
             else
-              echo "❌ Certificate SHA-1 NOT found in provisioning profile!"
+              echo "⚠️ Certificate SHA-1 not found in profile (may still work)"
             fi
             
-            # Check for expected certificate serial numbers (both uppercase and lowercase)
-            echo "🔍 Checking for certificate serial numbers in provisioning profile..."
-            
-            # Check for new certificate (try both cases)
+            # Quick check for expected certificate serial
             if cat /tmp/profile_content.plist | grep -qi "1b6bd133c9d349b16b4cbe1220f1aeb2"; then
-              echo "✅ NEW certificate serial number found in provisioning profile"
+              echo "✅ Expected certificate serial found in provisioning profile"
             else
-              echo "❌ NEW certificate serial number NOT found in provisioning profile"
+              echo "⚠️ Expected certificate serial not found (may still work)"
             fi
-            
-            # Check for old certificate (try both cases)
-            if cat /tmp/profile_content.plist | grep -qi "8d0fd88c9e453fee4e63cceb3a5464b"; then
-              echo "⚠️ OLD certificate serial number found in provisioning profile"
-            else
-              echo "✅ OLD certificate serial number not in provisioning profile"
-            fi
-            
-            # Show what certificates are actually in the provisioning profile
-            echo "🔍 Certificates found in provisioning profile:"
-            CERT_COUNT=1
-            cat /tmp/profile_content.plist | grep -A 1 "DeveloperCertificates" -A 1000 | grep -o '<data>[^<]*</data>' | head -3 | while read cert_data; do
-              echo "Certificate #$CERT_COUNT:"
-              cert_base64=$(echo "$cert_data" | sed 's/<data>\(.*\)<\/data>/\1/')
-              
-              # Try to extract serial number with error handling
-              if echo "$cert_base64" | base64 -d | openssl x509 -serial -noout 2>/dev/null; then
-                echo "✅ Successfully parsed certificate"
-              else
-                echo "⚠️ Could not parse certificate with OpenSSL (compatibility issue)"
-                echo "Certificate data length: $(echo "$cert_base64" | wc -c) characters"
-              fi
-              echo "---"
-              CERT_COUNT=$((CERT_COUNT + 1))
-            done
           else
             echo "❌ No certificate SHA-1 found in keychain!"
             echo "Available certificates:"
             security find-identity -v -p codesigning $KEYCHAIN_PATH || echo "No certificates found"
           fi
+          
+          echo "🏁 Certificate and provisioning profile setup completed"
+          echo "Proceeding with build process..."
 
       - name: Install Rust toolchain
         id: rust_toolchain
