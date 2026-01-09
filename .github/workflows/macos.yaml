@@ -82,11 +82,18 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
-      - name: Clone PonyNotes-Cloud-New (for client-api dependency)
+      - name: Download PonyNotes-Cloud-New (for client-api dependency)
         run: |
-          git clone -c core.symlinks=false --depth 1 --branch main https://github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
-          echo "✅ PonyNotes-Cloud-New cloned successfully (symlinks disabled)"
-          ls -la ../PonyNotes-Cloud-New/libs/
+          echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
+          curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
+          tar -xzf /tmp/cloud.tar.gz -C /tmp
+          mv /tmp/PonyNotes-Cloud-New-main ../PonyNotes-Cloud-New
+          rm /tmp/cloud.tar.gz
+          echo "✅ PonyNotes-Cloud-New downloaded successfully"
+          echo "📁 Verifying Cargo.toml exists:"
+          ls -la ../PonyNotes-Cloud-New/Cargo.toml
+          echo "📁 Verifying libs/client-api exists:"
+          ls -la ../PonyNotes-Cloud-New/libs/client-api/Cargo.toml
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
@@ -291,11 +298,18 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
-      - name: Clone PonyNotes-Cloud-New (for client-api dependency)
+      - name: Download PonyNotes-Cloud-New (for client-api dependency)
         run: |
-          git clone -c core.symlinks=false --depth 1 --branch main https://github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
-          echo "✅ PonyNotes-Cloud-New cloned successfully (symlinks disabled)"
-          ls -la ../PonyNotes-Cloud-New/libs/
+          echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
+          curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
+          tar -xzf /tmp/cloud.tar.gz -C /tmp
+          mv /tmp/PonyNotes-Cloud-New-main ../PonyNotes-Cloud-New
+          rm /tmp/cloud.tar.gz
+          echo "✅ PonyNotes-Cloud-New downloaded successfully"
+          echo "📁 Verifying Cargo.toml exists:"
+          ls -la ../PonyNotes-Cloud-New/Cargo.toml
+          echo "📁 Verifying libs/client-api exists:"
+          ls -la ../PonyNotes-Cloud-New/libs/client-api/Cargo.toml
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
@@ -486,11 +500,18 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
-      - name: Clone PonyNotes-Cloud-New (for client-api dependency)
+      - name: Download PonyNotes-Cloud-New (for client-api dependency)
         run: |
-          git clone -c core.symlinks=false --depth 1 --branch main https://github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
-          echo "✅ PonyNotes-Cloud-New cloned successfully (symlinks disabled)"
-          ls -la ../PonyNotes-Cloud-New/libs/
+          echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
+          curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
+          tar -xzf /tmp/cloud.tar.gz -C /tmp
+          mv /tmp/PonyNotes-Cloud-New-main ../PonyNotes-Cloud-New
+          rm /tmp/cloud.tar.gz
+          echo "✅ PonyNotes-Cloud-New downloaded successfully"
+          echo "📁 Verifying Cargo.toml exists:"
+          ls -la ../PonyNotes-Cloud-New/Cargo.toml
+          echo "📁 Verifying libs/client-api exists:"
+          ls -la ../PonyNotes-Cloud-New/libs/client-api/Cargo.toml
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
