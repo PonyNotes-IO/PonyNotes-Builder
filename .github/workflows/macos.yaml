@@ -83,8 +83,10 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
       - name: Clone PonyNotes-Cloud-New (for client-api dependency)
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
         run: |
-          git clone --depth 1 --branch main https://${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
+          git clone --depth 1 --branch main https://x-access-token:${GH_TOKEN}@github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
           echo "✅ PonyNotes-Cloud-New cloned to ../PonyNotes-Cloud-New"
           ls -la ../PonyNotes-Cloud-New
 
@@ -292,8 +294,10 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
       - name: Clone PonyNotes-Cloud-New (for client-api dependency)
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
         run: |
-          git clone --depth 1 --branch main https://${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
+          git clone --depth 1 --branch main https://x-access-token:${GH_TOKEN}@github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
           echo "✅ PonyNotes-Cloud-New cloned to ../PonyNotes-Cloud-New"
           ls -la ../PonyNotes-Cloud-New
 
@@ -487,8 +491,10 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
       - name: Clone PonyNotes-Cloud-New (for client-api dependency)
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
         run: |
-          git clone --depth 1 --branch main https://${{ secrets.PRIVATE_REPO_TOKEN }}@github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
+          git clone --depth 1 --branch main https://x-access-token:${GH_TOKEN}@github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
           echo "✅ PonyNotes-Cloud-New cloned to ../PonyNotes-Cloud-New"
           ls -la ../PonyNotes-Cloud-New
 
