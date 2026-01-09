@@ -83,12 +83,17 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
       - name: Clone PonyNotes-Cloud-New (for client-api dependency)
-        env:
-          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
         run: |
-          git clone --depth 1 --branch main https://x-access-token:${GH_TOKEN}@github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
-          echo "✅ PonyNotes-Cloud-New cloned to ../PonyNotes-Cloud-New"
-          ls -la ../PonyNotes-Cloud-New
+          mkdir -p ../PonyNotes-Cloud-New
+          cd ../PonyNotes-Cloud-New
+          git init
+          git remote add origin https://github.com/PonyNotes-IO/PonyNotes-Cloud-New.git
+          git config core.sparseCheckout true
+          echo "libs/client-api/" >> .git/info/sparse-checkout
+          echo "libs/client-api-entity/" >> .git/info/sparse-checkout
+          git pull --depth 1 origin main
+          echo "✅ PonyNotes-Cloud-New (sparse) cloned successfully"
+          ls -la libs/
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
@@ -294,12 +299,17 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
       - name: Clone PonyNotes-Cloud-New (for client-api dependency)
-        env:
-          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
         run: |
-          git clone --depth 1 --branch main https://x-access-token:${GH_TOKEN}@github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
-          echo "✅ PonyNotes-Cloud-New cloned to ../PonyNotes-Cloud-New"
-          ls -la ../PonyNotes-Cloud-New
+          mkdir -p ../PonyNotes-Cloud-New
+          cd ../PonyNotes-Cloud-New
+          git init
+          git remote add origin https://github.com/PonyNotes-IO/PonyNotes-Cloud-New.git
+          git config core.sparseCheckout true
+          echo "libs/client-api/" >> .git/info/sparse-checkout
+          echo "libs/client-api-entity/" >> .git/info/sparse-checkout
+          git pull --depth 1 origin main
+          echo "✅ PonyNotes-Cloud-New (sparse) cloned successfully"
+          ls -la libs/
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
@@ -491,12 +501,17 @@ jobs:
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
       - name: Clone PonyNotes-Cloud-New (for client-api dependency)
-        env:
-          GH_TOKEN: ${{ secrets.PRIVATE_REPO_TOKEN }}
         run: |
-          git clone --depth 1 --branch main https://x-access-token:${GH_TOKEN}@github.com/PonyNotes-IO/PonyNotes-Cloud-New.git ../PonyNotes-Cloud-New
-          echo "✅ PonyNotes-Cloud-New cloned to ../PonyNotes-Cloud-New"
-          ls -la ../PonyNotes-Cloud-New
+          mkdir -p ../PonyNotes-Cloud-New
+          cd ../PonyNotes-Cloud-New
+          git init
+          git remote add origin https://github.com/PonyNotes-IO/PonyNotes-Cloud-New.git
+          git config core.sparseCheckout true
+          echo "libs/client-api/" >> .git/info/sparse-checkout
+          echo "libs/client-api-entity/" >> .git/info/sparse-checkout
+          git pull --depth 1 origin main
+          echo "✅ PonyNotes-Cloud-New (sparse) cloned successfully"
+          ls -la libs/
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
