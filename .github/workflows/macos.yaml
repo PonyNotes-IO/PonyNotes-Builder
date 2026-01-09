@@ -86,14 +86,28 @@ jobs:
         run: |
           echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
-          tar -xzf /tmp/cloud.tar.gz -C /tmp
-          mv /tmp/PonyNotes-Cloud-New-main ../PonyNotes-Cloud-New
+          mkdir -p ../PonyNotes-Cloud-New
+          tar -xzf /tmp/cloud.tar.gz -C ../PonyNotes-Cloud-New --strip-components=1 \
+            --exclude='*.conf' \
+            --exclude='nginx' \
+            --exclude='docker' \
+            --exclude='assets' \
+            --exclude='tests' \
+            --exclude='target' \
+            --exclude='migrations' \
+            --exclude='email_template' \
+            --exclude='admin_frontend' \
+            --exclude='services' \
+            --exclude='src' \
+            --exclude='doc' \
+            --exclude='xtask' \
+            --exclude='external_proxy_config' \
+            --exclude='https' \
+            --exclude='script'
           rm /tmp/cloud.tar.gz
           echo "✅ PonyNotes-Cloud-New downloaded successfully"
-          echo "📁 Verifying Cargo.toml exists:"
-          ls -la ../PonyNotes-Cloud-New/Cargo.toml
-          echo "📁 Verifying libs/client-api exists:"
-          ls -la ../PonyNotes-Cloud-New/libs/client-api/Cargo.toml
+          ls -la ../PonyNotes-Cloud-New/
+          ls -la ../PonyNotes-Cloud-New/libs/client-api/
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
@@ -302,14 +316,28 @@ jobs:
         run: |
           echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
-          tar -xzf /tmp/cloud.tar.gz -C /tmp
-          mv /tmp/PonyNotes-Cloud-New-main ../PonyNotes-Cloud-New
+          mkdir -p ../PonyNotes-Cloud-New
+          tar -xzf /tmp/cloud.tar.gz -C ../PonyNotes-Cloud-New --strip-components=1 \
+            --exclude='*.conf' \
+            --exclude='nginx' \
+            --exclude='docker' \
+            --exclude='assets' \
+            --exclude='tests' \
+            --exclude='target' \
+            --exclude='migrations' \
+            --exclude='email_template' \
+            --exclude='admin_frontend' \
+            --exclude='services' \
+            --exclude='src' \
+            --exclude='doc' \
+            --exclude='xtask' \
+            --exclude='external_proxy_config' \
+            --exclude='https' \
+            --exclude='script'
           rm /tmp/cloud.tar.gz
           echo "✅ PonyNotes-Cloud-New downloaded successfully"
-          echo "📁 Verifying Cargo.toml exists:"
-          ls -la ../PonyNotes-Cloud-New/Cargo.toml
-          echo "📁 Verifying libs/client-api exists:"
-          ls -la ../PonyNotes-Cloud-New/libs/client-api/Cargo.toml
+          ls -la ../PonyNotes-Cloud-New/
+          ls -la ../PonyNotes-Cloud-New/libs/client-api/
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
@@ -504,14 +532,28 @@ jobs:
         run: |
           echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
-          tar -xzf /tmp/cloud.tar.gz -C /tmp
-          mv /tmp/PonyNotes-Cloud-New-main ../PonyNotes-Cloud-New
+          mkdir -p ../PonyNotes-Cloud-New
+          tar -xzf /tmp/cloud.tar.gz -C ../PonyNotes-Cloud-New --strip-components=1 \
+            --exclude='*.conf' \
+            --exclude='nginx' \
+            --exclude='docker' \
+            --exclude='assets' \
+            --exclude='tests' \
+            --exclude='target' \
+            --exclude='migrations' \
+            --exclude='email_template' \
+            --exclude='admin_frontend' \
+            --exclude='services' \
+            --exclude='src' \
+            --exclude='doc' \
+            --exclude='xtask' \
+            --exclude='external_proxy_config' \
+            --exclude='https' \
+            --exclude='script'
           rm /tmp/cloud.tar.gz
           echo "✅ PonyNotes-Cloud-New downloaded successfully"
-          echo "📁 Verifying Cargo.toml exists:"
-          ls -la ../PonyNotes-Cloud-New/Cargo.toml
-          echo "📁 Verifying libs/client-api exists:"
-          ls -la ../PonyNotes-Cloud-New/libs/client-api/Cargo.toml
+          ls -la ../PonyNotes-Cloud-New/
+          ls -la ../PonyNotes-Cloud-New/libs/client-api/
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
