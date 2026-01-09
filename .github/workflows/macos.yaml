@@ -6,15 +6,15 @@ on:
       repo:
         description: "Repo"
         required: true
-        default: "PonyNotes-IO/PonyNotes"
+        default: "PonyNotes-IO/PonyNotes-New"
       branch:
         description: "Branch"
         required: true
-        default: "main"
+        default: "dev"
       build_name:
         description: "Build Version (it should match the version in pubspec.yaml)"
         required: true
-        default: "0.9.4"
+        default: "0.9.9"
       arch:
         type: choice
         description: "Build Architecture"
