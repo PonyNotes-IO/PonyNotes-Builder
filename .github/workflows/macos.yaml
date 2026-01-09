@@ -85,20 +85,16 @@ jobs:
       - name: Download PonyNotes-Cloud-New (for client-api dependency)
         run: |
           echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../PonyNotes-Cloud-New"
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
-          # 解压到临时目录，忽略符号链接错误
-          cd /tmp && tar -xzf cloud.tar.gz 2>/dev/null || true
-          # 删除有问题的符号链接文件
+          tar -xzf /tmp/cloud.tar.gz -C /tmp 2>/dev/null || true
           rm -f /tmp/PonyNotes-Cloud-New-main/nginx.conf
           rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
-          # 移动到目标位置
-          mv /tmp/PonyNotes-Cloud-New-main ../PonyNotes-Cloud-New
+          mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
           rm /tmp/cloud.tar.gz
-          echo "✅ PonyNotes-Cloud-New downloaded successfully"
-          echo "📁 Workspace Cargo.toml:"
-          head -20 ../PonyNotes-Cloud-New/Cargo.toml
-          echo "📁 client-api src files:"
-          ls -la ../PonyNotes-Cloud-New/libs/client-api/src/
+          echo "✅ Downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/Cargo.toml"
+          ls -la "$TARGET_DIR/libs/client-api/src/"
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
@@ -306,20 +302,16 @@ jobs:
       - name: Download PonyNotes-Cloud-New (for client-api dependency)
         run: |
           echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../PonyNotes-Cloud-New"
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
-          # 解压到临时目录，忽略符号链接错误
-          cd /tmp && tar -xzf cloud.tar.gz 2>/dev/null || true
-          # 删除有问题的符号链接文件
+          tar -xzf /tmp/cloud.tar.gz -C /tmp 2>/dev/null || true
           rm -f /tmp/PonyNotes-Cloud-New-main/nginx.conf
           rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
-          # 移动到目标位置
-          mv /tmp/PonyNotes-Cloud-New-main ../PonyNotes-Cloud-New
+          mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
           rm /tmp/cloud.tar.gz
-          echo "✅ PonyNotes-Cloud-New downloaded successfully"
-          echo "📁 Workspace Cargo.toml:"
-          head -20 ../PonyNotes-Cloud-New/Cargo.toml
-          echo "📁 client-api src files:"
-          ls -la ../PonyNotes-Cloud-New/libs/client-api/src/
+          echo "✅ Downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/Cargo.toml"
+          ls -la "$TARGET_DIR/libs/client-api/src/"
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
@@ -513,20 +505,16 @@ jobs:
       - name: Download PonyNotes-Cloud-New (for client-api dependency)
         run: |
           echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../PonyNotes-Cloud-New"
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
-          # 解压到临时目录，忽略符号链接错误
-          cd /tmp && tar -xzf cloud.tar.gz 2>/dev/null || true
-          # 删除有问题的符号链接文件
+          tar -xzf /tmp/cloud.tar.gz -C /tmp 2>/dev/null || true
           rm -f /tmp/PonyNotes-Cloud-New-main/nginx.conf
           rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
-          # 移动到目标位置
-          mv /tmp/PonyNotes-Cloud-New-main ../PonyNotes-Cloud-New
+          mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
           rm /tmp/cloud.tar.gz
-          echo "✅ PonyNotes-Cloud-New downloaded successfully"
-          echo "📁 Workspace Cargo.toml:"
-          head -20 ../PonyNotes-Cloud-New/Cargo.toml
-          echo "📁 client-api src files:"
-          ls -la ../PonyNotes-Cloud-New/libs/client-api/src/
+          echo "✅ Downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/Cargo.toml"
+          ls -la "$TARGET_DIR/libs/client-api/src/"
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
