@@ -82,6 +82,14 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
+      - name: Checkout PonyNotes-Cloud-New (for client-api dependency)
+        uses: actions/checkout@v2
+        with:
+          repository: PonyNotes-IO/PonyNotes-Cloud-New
+          ref: main
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: ../PonyNotes-Cloud-New
+
       - name: Install flutter
         uses: subosito/flutter-action@v2
         with:
@@ -285,6 +293,14 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
+      - name: Checkout PonyNotes-Cloud-New (for client-api dependency)
+        uses: actions/checkout@v2
+        with:
+          repository: PonyNotes-IO/PonyNotes-Cloud-New
+          ref: main
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: ../PonyNotes-Cloud-New
+
       - name: Install flutter
         uses: subosito/flutter-action@v2
         with:
@@ -473,6 +489,14 @@ jobs:
           repository: ${{ inputs.repo }}
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+
+      - name: Checkout PonyNotes-Cloud-New (for client-api dependency)
+        uses: actions/checkout@v2
+        with:
+          repository: PonyNotes-IO/PonyNotes-Cloud-New
+          ref: main
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: ../PonyNotes-Cloud-New
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
@@ -668,4 +692,3 @@ jobs:
             --data-binary @"$filepath" \
             "${upload_url}?name=${encoded_filename}" \
             --fail-with-body
-
