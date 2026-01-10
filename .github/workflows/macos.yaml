@@ -143,6 +143,11 @@ jobs:
 
       - name: Build PonyNotes (x86_64)
         working-directory: frontend
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+          CARGO_NET_RETRY: "10"
+          CARGO_HTTP_TIMEOUT: "120"
+          GIT_TERMINAL_PROMPT: "0"
         run: |
           echo "🔧 Building PonyNotes for x86_64 (Intel)"
           echo "Architecture: $(uname -m)"
@@ -359,6 +364,11 @@ jobs:
 
       - name: Build PonyNotes (aarch64)
         working-directory: frontend
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+          CARGO_NET_RETRY: "10"
+          CARGO_HTTP_TIMEOUT: "120"
+          GIT_TERMINAL_PROMPT: "0"
         run: |
           echo "🔧 Building PonyNotes for aarch64 (ARM64)"
           echo "Architecture: $(uname -m)"
@@ -566,6 +576,11 @@ jobs:
 
       - name: Build PonyNotes (Universal)
         working-directory: frontend
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+          CARGO_NET_RETRY: "10"
+          CARGO_HTTP_TIMEOUT: "120"
+          GIT_TERMINAL_PROMPT: "0"
         run: |
           echo "🔧 Building PonyNotes Universal Binary (x86_64 + ARM64)"
           echo "Architecture: $(uname -m)"
