@@ -111,17 +111,18 @@ jobs:
 
       - name: Download rust-rocksdb (for rocksdb dependency)
         run: |
-          echo "📦 Downloading rust-rocksdb (specific commit) via tarball..."
+          echo "📦 Cloning rust-rocksdb with submodules (required for rocksdb source)..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../rust-rocksdb"
-          # Download the specific commit
-          curl -sL https://github.com/rust-rocksdb/rust-rocksdb/archive/1710120e4549e04ba3baa6a1ee5a5a801fa45a72.tar.gz -o /tmp/rocksdb.tar.gz
-          mkdir -p "$TARGET_DIR"
-          tar -xzf /tmp/rocksdb.tar.gz -C /tmp 2>/dev/null || true
-          mv /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72/* "$TARGET_DIR/"
-          rm -rf /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72
-          rm /tmp/rocksdb.tar.gz
-          echo "✅ rust-rocksdb downloaded to: $TARGET_DIR"
+          # Must use git clone to get submodules (rocksdb and snappy source code)
+          # tarball download doesn't work because librocksdb-sys build.rs requires git submodules
+          git clone https://github.com/rust-rocksdb/rust-rocksdb.git "$TARGET_DIR"
+          cd "$TARGET_DIR"
+          git checkout 1710120e4549e04ba3baa6a1ee5a5a801fa45a72
+          git submodule update --init --recursive
+          echo "✅ rust-rocksdb cloned to: $TARGET_DIR"
           ls -la "$TARGET_DIR/"
+          echo "📋 Checking submodules:"
+          ls -la "$TARGET_DIR/librocksdb-sys/"
 
       - name: Download langchain-rust (for langchain-rust dependency)
         run: |
@@ -401,17 +402,18 @@ jobs:
 
       - name: Download rust-rocksdb (for rocksdb dependency)
         run: |
-          echo "📦 Downloading rust-rocksdb (specific commit) via tarball..."
+          echo "📦 Cloning rust-rocksdb with submodules (required for rocksdb source)..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../rust-rocksdb"
-          # Download the specific commit
-          curl -sL https://github.com/rust-rocksdb/rust-rocksdb/archive/1710120e4549e04ba3baa6a1ee5a5a801fa45a72.tar.gz -o /tmp/rocksdb.tar.gz
-          mkdir -p "$TARGET_DIR"
-          tar -xzf /tmp/rocksdb.tar.gz -C /tmp 2>/dev/null || true
-          mv /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72/* "$TARGET_DIR/"
-          rm -rf /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72
-          rm /tmp/rocksdb.tar.gz
-          echo "✅ rust-rocksdb downloaded to: $TARGET_DIR"
+          # Must use git clone to get submodules (rocksdb and snappy source code)
+          # tarball download doesn't work because librocksdb-sys build.rs requires git submodules
+          git clone https://github.com/rust-rocksdb/rust-rocksdb.git "$TARGET_DIR"
+          cd "$TARGET_DIR"
+          git checkout 1710120e4549e04ba3baa6a1ee5a5a801fa45a72
+          git submodule update --init --recursive
+          echo "✅ rust-rocksdb cloned to: $TARGET_DIR"
           ls -la "$TARGET_DIR/"
+          echo "📋 Checking submodules:"
+          ls -la "$TARGET_DIR/librocksdb-sys/"
 
       - name: Download langchain-rust (for langchain-rust dependency)
         run: |
@@ -677,17 +679,18 @@ jobs:
 
       - name: Download rust-rocksdb (for rocksdb dependency)
         run: |
-          echo "📦 Downloading rust-rocksdb (specific commit) via tarball..."
+          echo "📦 Cloning rust-rocksdb with submodules (required for rocksdb source)..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../rust-rocksdb"
-          # Download the specific commit
-          curl -sL https://github.com/rust-rocksdb/rust-rocksdb/archive/1710120e4549e04ba3baa6a1ee5a5a801fa45a72.tar.gz -o /tmp/rocksdb.tar.gz
-          mkdir -p "$TARGET_DIR"
-          tar -xzf /tmp/rocksdb.tar.gz -C /tmp 2>/dev/null || true
-          mv /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72/* "$TARGET_DIR/"
-          rm -rf /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72
-          rm /tmp/rocksdb.tar.gz
-          echo "✅ rust-rocksdb downloaded to: $TARGET_DIR"
+          # Must use git clone to get submodules (rocksdb and snappy source code)
+          # tarball download doesn't work because librocksdb-sys build.rs requires git submodules
+          git clone https://github.com/rust-rocksdb/rust-rocksdb.git "$TARGET_DIR"
+          cd "$TARGET_DIR"
+          git checkout 1710120e4549e04ba3baa6a1ee5a5a801fa45a72
+          git submodule update --init --recursive
+          echo "✅ rust-rocksdb cloned to: $TARGET_DIR"
           ls -la "$TARGET_DIR/"
+          echo "📋 Checking submodules:"
+          ls -la "$TARGET_DIR/librocksdb-sys/"
 
       - name: Download langchain-rust (for langchain-rust dependency)
         run: |
