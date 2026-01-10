@@ -96,6 +96,74 @@ jobs:
           ls -la "$TARGET_DIR/Cargo.toml"
           ls -la "$TARGET_DIR/libs/client-api/src/"
 
+      - name: Download AppFlowy-Collab (for collab dependencies)
+        run: |
+          echo "📦 Downloading AppFlowy-Collab (dev branch) via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../AppFlowy-Collab"
+          curl -sL https://github.com/PonyNotes-IO/AppFlowy-Collab/archive/refs/heads/dev.tar.gz -o /tmp/collab.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/collab.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/AppFlowy-Collab-dev/* "$TARGET_DIR/"
+          rm -rf /tmp/AppFlowy-Collab-dev
+          rm /tmp/collab.tar.gz
+          echo "✅ AppFlowy-Collab downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/"
+
+      - name: Download rust-rocksdb (for rocksdb dependency)
+        run: |
+          echo "📦 Downloading rust-rocksdb (specific commit) via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../rust-rocksdb"
+          # Download the specific commit
+          curl -sL https://github.com/rust-rocksdb/rust-rocksdb/archive/1710120e4549e04ba3baa6a1ee5a5a801fa45a72.tar.gz -o /tmp/rocksdb.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/rocksdb.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72/* "$TARGET_DIR/"
+          rm -rf /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72
+          rm /tmp/rocksdb.tar.gz
+          echo "✅ rust-rocksdb downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/"
+
+      - name: Download langchain-rust (for langchain-rust dependency)
+        run: |
+          echo "📦 Downloading langchain-rust (af branch) via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../langchain-rust"
+          curl -sL https://github.com/appflowy/langchain-rust/archive/refs/heads/af.tar.gz -o /tmp/langchain.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/langchain.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/langchain-rust-af/* "$TARGET_DIR/"
+          rm -rf /tmp/langchain-rust-af
+          rm /tmp/langchain.tar.gz
+          echo "✅ langchain-rust downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/"
+
+      - name: Patch Cargo.toml to use local paths for git dependencies
+        run: |
+          echo "🔧 Patching Cargo.toml to use local paths instead of git URLs..."
+          CARGO_TOML="${GITHUB_WORKSPACE}/frontend/rust-lib/Cargo.toml"
+          
+          # Backup original
+          cp "$CARGO_TOML" "$CARGO_TOML.bak"
+          
+          # Replace git dependencies with local paths for collab crates
+          sed -i '' 's|collab = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab = { path = "../../../AppFlowy-Collab/collab" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-entity = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-entity = { path = "../../../AppFlowy-Collab/collab-entity" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-folder = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-folder = { path = "../../../AppFlowy-Collab/collab-folder" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-document = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-document = { path = "../../../AppFlowy-Collab/collab-document" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-database = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-database = { path = "../../../AppFlowy-Collab/collab-database" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-plugins = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-plugins = { path = "../../../AppFlowy-Collab/collab-plugins" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-user = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-user = { path = "../../../AppFlowy-Collab/collab-user" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-importer = { version = "0.1", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-importer = { path = "../../../AppFlowy-Collab/collab-importer" }|g' "$CARGO_TOML"
+          
+          # Replace rocksdb git dependency with local path
+          sed -i '' 's|rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1710120e4549e04ba3baa6a1ee5a5a801fa45a72" }|rocksdb = { path = "../../../rust-rocksdb" }|g' "$CARGO_TOML"
+          
+          # Replace langchain-rust git dependency with local path
+          sed -i '' 's|langchain-rust = { version = "4.6.0", git = "https://github.com/appflowy/langchain-rust", branch = "af" }|langchain-rust = { path = "../../../langchain-rust" }|g' "$CARGO_TOML"
+          
+          echo "✅ Cargo.toml patched successfully"
+          echo "📋 Showing [patch.crates-io] section:"
+          grep -A 35 '\[patch.crates-io\]' "$CARGO_TOML" | head -45
+
       - name: Install flutter
         uses: subosito/flutter-action@v2
         with:
@@ -318,6 +386,74 @@ jobs:
           ls -la "$TARGET_DIR/Cargo.toml"
           ls -la "$TARGET_DIR/libs/client-api/src/"
 
+      - name: Download AppFlowy-Collab (for collab dependencies)
+        run: |
+          echo "📦 Downloading AppFlowy-Collab (dev branch) via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../AppFlowy-Collab"
+          curl -sL https://github.com/PonyNotes-IO/AppFlowy-Collab/archive/refs/heads/dev.tar.gz -o /tmp/collab.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/collab.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/AppFlowy-Collab-dev/* "$TARGET_DIR/"
+          rm -rf /tmp/AppFlowy-Collab-dev
+          rm /tmp/collab.tar.gz
+          echo "✅ AppFlowy-Collab downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/"
+
+      - name: Download rust-rocksdb (for rocksdb dependency)
+        run: |
+          echo "📦 Downloading rust-rocksdb (specific commit) via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../rust-rocksdb"
+          # Download the specific commit
+          curl -sL https://github.com/rust-rocksdb/rust-rocksdb/archive/1710120e4549e04ba3baa6a1ee5a5a801fa45a72.tar.gz -o /tmp/rocksdb.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/rocksdb.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72/* "$TARGET_DIR/"
+          rm -rf /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72
+          rm /tmp/rocksdb.tar.gz
+          echo "✅ rust-rocksdb downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/"
+
+      - name: Download langchain-rust (for langchain-rust dependency)
+        run: |
+          echo "📦 Downloading langchain-rust (af branch) via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../langchain-rust"
+          curl -sL https://github.com/appflowy/langchain-rust/archive/refs/heads/af.tar.gz -o /tmp/langchain.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/langchain.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/langchain-rust-af/* "$TARGET_DIR/"
+          rm -rf /tmp/langchain-rust-af
+          rm /tmp/langchain.tar.gz
+          echo "✅ langchain-rust downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/"
+
+      - name: Patch Cargo.toml to use local paths for git dependencies
+        run: |
+          echo "🔧 Patching Cargo.toml to use local paths instead of git URLs..."
+          CARGO_TOML="${GITHUB_WORKSPACE}/frontend/rust-lib/Cargo.toml"
+          
+          # Backup original
+          cp "$CARGO_TOML" "$CARGO_TOML.bak"
+          
+          # Replace git dependencies with local paths for collab crates
+          sed -i '' 's|collab = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab = { path = "../../../AppFlowy-Collab/collab" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-entity = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-entity = { path = "../../../AppFlowy-Collab/collab-entity" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-folder = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-folder = { path = "../../../AppFlowy-Collab/collab-folder" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-document = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-document = { path = "../../../AppFlowy-Collab/collab-document" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-database = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-database = { path = "../../../AppFlowy-Collab/collab-database" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-plugins = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-plugins = { path = "../../../AppFlowy-Collab/collab-plugins" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-user = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-user = { path = "../../../AppFlowy-Collab/collab-user" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-importer = { version = "0.1", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-importer = { path = "../../../AppFlowy-Collab/collab-importer" }|g' "$CARGO_TOML"
+          
+          # Replace rocksdb git dependency with local path
+          sed -i '' 's|rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1710120e4549e04ba3baa6a1ee5a5a801fa45a72" }|rocksdb = { path = "../../../rust-rocksdb" }|g' "$CARGO_TOML"
+          
+          # Replace langchain-rust git dependency with local path
+          sed -i '' 's|langchain-rust = { version = "4.6.0", git = "https://github.com/appflowy/langchain-rust", branch = "af" }|langchain-rust = { path = "../../../langchain-rust" }|g' "$CARGO_TOML"
+          
+          echo "✅ Cargo.toml patched successfully"
+          echo "📋 Showing [patch.crates-io] section:"
+          grep -A 35 '\[patch.crates-io\]' "$CARGO_TOML" | head -45
+
       - name: Install flutter
         uses: subosito/flutter-action@v2
         with:
@@ -525,6 +661,74 @@ jobs:
           echo "✅ Downloaded to: $TARGET_DIR"
           ls -la "$TARGET_DIR/Cargo.toml"
           ls -la "$TARGET_DIR/libs/client-api/src/"
+
+      - name: Download AppFlowy-Collab (for collab dependencies)
+        run: |
+          echo "📦 Downloading AppFlowy-Collab (dev branch) via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../AppFlowy-Collab"
+          curl -sL https://github.com/PonyNotes-IO/AppFlowy-Collab/archive/refs/heads/dev.tar.gz -o /tmp/collab.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/collab.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/AppFlowy-Collab-dev/* "$TARGET_DIR/"
+          rm -rf /tmp/AppFlowy-Collab-dev
+          rm /tmp/collab.tar.gz
+          echo "✅ AppFlowy-Collab downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/"
+
+      - name: Download rust-rocksdb (for rocksdb dependency)
+        run: |
+          echo "📦 Downloading rust-rocksdb (specific commit) via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../rust-rocksdb"
+          # Download the specific commit
+          curl -sL https://github.com/rust-rocksdb/rust-rocksdb/archive/1710120e4549e04ba3baa6a1ee5a5a801fa45a72.tar.gz -o /tmp/rocksdb.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/rocksdb.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72/* "$TARGET_DIR/"
+          rm -rf /tmp/rust-rocksdb-1710120e4549e04ba3baa6a1ee5a5a801fa45a72
+          rm /tmp/rocksdb.tar.gz
+          echo "✅ rust-rocksdb downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/"
+
+      - name: Download langchain-rust (for langchain-rust dependency)
+        run: |
+          echo "📦 Downloading langchain-rust (af branch) via tarball..."
+          TARGET_DIR="${GITHUB_WORKSPACE}/../langchain-rust"
+          curl -sL https://github.com/appflowy/langchain-rust/archive/refs/heads/af.tar.gz -o /tmp/langchain.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/langchain.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/langchain-rust-af/* "$TARGET_DIR/"
+          rm -rf /tmp/langchain-rust-af
+          rm /tmp/langchain.tar.gz
+          echo "✅ langchain-rust downloaded to: $TARGET_DIR"
+          ls -la "$TARGET_DIR/"
+
+      - name: Patch Cargo.toml to use local paths for git dependencies
+        run: |
+          echo "🔧 Patching Cargo.toml to use local paths instead of git URLs..."
+          CARGO_TOML="${GITHUB_WORKSPACE}/frontend/rust-lib/Cargo.toml"
+          
+          # Backup original
+          cp "$CARGO_TOML" "$CARGO_TOML.bak"
+          
+          # Replace git dependencies with local paths for collab crates
+          sed -i '' 's|collab = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab = { path = "../../../AppFlowy-Collab/collab" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-entity = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-entity = { path = "../../../AppFlowy-Collab/collab-entity" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-folder = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-folder = { path = "../../../AppFlowy-Collab/collab-folder" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-document = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-document = { path = "../../../AppFlowy-Collab/collab-document" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-database = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-database = { path = "../../../AppFlowy-Collab/collab-database" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-plugins = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-plugins = { path = "../../../AppFlowy-Collab/collab-plugins" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-user = { version = "0.2", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-user = { path = "../../../AppFlowy-Collab/collab-user" }|g' "$CARGO_TOML"
+          sed -i '' 's|collab-importer = { version = "0.1", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-importer = { path = "../../../AppFlowy-Collab/collab-importer" }|g' "$CARGO_TOML"
+          
+          # Replace rocksdb git dependency with local path
+          sed -i '' 's|rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1710120e4549e04ba3baa6a1ee5a5a801fa45a72" }|rocksdb = { path = "../../../rust-rocksdb" }|g' "$CARGO_TOML"
+          
+          # Replace langchain-rust git dependency with local path
+          sed -i '' 's|langchain-rust = { version = "4.6.0", git = "https://github.com/appflowy/langchain-rust", branch = "af" }|langchain-rust = { path = "../../../langchain-rust" }|g' "$CARGO_TOML"
+          
+          echo "✅ Cargo.toml patched successfully"
+          echo "📋 Showing [patch.crates-io] section:"
+          grep -A 35 '\[patch.crates-io\]' "$CARGO_TOML" | head -45
 
       - name: Install flutter
         uses: subosito/flutter-action@v2
