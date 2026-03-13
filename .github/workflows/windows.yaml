@@ -76,9 +76,7 @@ jobs:
             -H "Authorization: token ${{ secrets.PRIVATE_REPO_TOKEN }}" \
             https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz \
             -o /tmp/cloud.tar.gz
-          tar -xzf /tmp/cloud.tar.gz -C /tmp || true
-          rm -f /tmp/PonyNotes-Cloud-New-main/nginx.conf
-          rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
+          tar -xzf /tmp/cloud.tar.gz -C /tmp --exclude='PonyNotes-Cloud-New-main/nginx.conf' --exclude='PonyNotes-Cloud-New-main/nginx' || true
           mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
           rm /tmp/cloud.tar.gz
           echo "Downloaded to: $TARGET_DIR"
