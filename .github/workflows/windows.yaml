@@ -190,13 +190,27 @@ jobs:
 
       - name: Build Windows app
         working-directory: frontend
+        shell: bash
         run: |
-          $ErrorActionPreference = 'Stop'
+          set -e
           flutter config --enable-windows-desktop
           dart ./scripts/flutter_release_build/build_flowy.dart exclude-directives . ${{ inputs.build_name }}
           cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-windows-x86 appflowy
-          if ($LASTEXITCODE -ne 0) { throw "cargo make failed with exit code $LASTEXITCODE" }
           dart ./scripts/flutter_release_build/build_flowy.dart include-directives . ${{ inputs.build_name }}
+
+      - name: Verify build output
+        shell: bash
+        run: |
+          echo "=== Flutter build output ==="
+          ls -la frontend/appflowy_flutter/build/windows/x64/runner/Release/ || echo "Flutter build output NOT FOUND"
+          echo "=== Product output ==="
+          ls -la "${{ env.WINDOWS_APP_RELEASE_PATH }}/PonyNotes/" || echo "Product output NOT FOUND"
+          echo "=== Product directory ==="
+          ls -la "${{ env.WINDOWS_APP_RELEASE_PATH }}/" || echo "Product directory NOT FOUND"
+          if [ ! -f "${{ env.WINDOWS_APP_RELEASE_PATH }}/PonyNotes/PonyNotes.exe" ]; then
+            echo "ERROR: PonyNotes.exe not found!"
+            exit 1
+          fi
 
       - name: Archive Asset
         uses: vimtor/action-zip@v1
