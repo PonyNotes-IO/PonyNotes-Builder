@@ -171,6 +171,7 @@ jobs:
         run: |
           vcpkg integrate install
           cargo install duckscript_cli --force --locked
+          cargo make appflowy-flutter-deps-tools
 
       - name: Generate env file
         working-directory: frontend/appflowy_flutter
