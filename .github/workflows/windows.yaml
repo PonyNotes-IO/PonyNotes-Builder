@@ -76,7 +76,9 @@ jobs:
             -H "Authorization: token ${{ secrets.PRIVATE_REPO_TOKEN }}" \
             https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz \
             -o /tmp/cloud.tar.gz
-          tar -xzf /tmp/cloud.tar.gz -C /tmp
+          tar -xzf /tmp/cloud.tar.gz -C /tmp || true
+          rm -f /tmp/PonyNotes-Cloud-New-main/nginx.conf
+          rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
           mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
           rm /tmp/cloud.tar.gz
           echo "Downloaded to: $TARGET_DIR"
@@ -92,7 +94,7 @@ jobs:
             https://github.com/PonyNotes-IO/AppFlowy-Collab/archive/refs/heads/dev.tar.gz \
             -o /tmp/collab.tar.gz
           mkdir -p "$TARGET_DIR"
-          tar -xzf /tmp/collab.tar.gz -C /tmp
+          tar -xzf /tmp/collab.tar.gz -C /tmp || true
           mv /tmp/AppFlowy-Collab-dev/* "$TARGET_DIR/"
           rm -rf /tmp/AppFlowy-Collab-dev
           rm /tmp/collab.tar.gz
@@ -117,7 +119,7 @@ jobs:
           TARGET_DIR="${GITHUB_WORKSPACE}/../langchain-rust"
           curl -sL https://github.com/appflowy/langchain-rust/archive/refs/heads/af.tar.gz -o /tmp/langchain.tar.gz
           mkdir -p "$TARGET_DIR"
-          tar -xzf /tmp/langchain.tar.gz -C /tmp
+          tar -xzf /tmp/langchain.tar.gz -C /tmp || true
           mv /tmp/langchain-rust-af/* "$TARGET_DIR/"
           rm -rf /tmp/langchain-rust-af
           rm /tmp/langchain.tar.gz
