@@ -196,7 +196,23 @@ jobs:
           set -e
           flutter config --enable-windows-desktop
           dart ./scripts/flutter_release_build/build_flowy.dart exclude-directives . ${{ inputs.build_name }}
-          cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-windows-x86 appflowy
+          # Build Rust core (dart_ffi.dll) and run code generation via cargo make
+          cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-windows-x86 appflowy-core-release
+          cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-windows-x86 code_generation
+
+      - name: Build Flutter Windows app
+        working-directory: frontend/appflowy_flutter
+        shell: cmd
+        run: |
+          flutter pub get
+          flutter build windows --release --build-name=${{ inputs.build_name }}
+
+      - name: Copy build output and restore directives
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -e
+          cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-windows-x86 copy-to-product
           dart ./scripts/flutter_release_build/build_flowy.dart include-directives . ${{ inputs.build_name }}
 
       - name: Verify build output
