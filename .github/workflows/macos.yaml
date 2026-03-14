@@ -88,7 +88,9 @@ jobs:
           echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../PonyNotes-Cloud-New"
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
-          tar -xzf /tmp/cloud.tar.gz -C /tmp --exclude='PonyNotes-Cloud-New-main/nginx.conf' --exclude='PonyNotes-Cloud-New-main/nginx' 2>/dev/null || true
+          tar -xzf /tmp/cloud.tar.gz -C /tmp 2>/dev/null || true
+          rm -f /tmp/PonyNotes-Cloud-New-main/nginx.conf
+          rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
           mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
           rm /tmp/cloud.tar.gz
           echo "✅ Downloaded to: $TARGET_DIR"
@@ -377,7 +379,9 @@ jobs:
           echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../PonyNotes-Cloud-New"
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
-          tar -xzf /tmp/cloud.tar.gz -C /tmp --exclude='PonyNotes-Cloud-New-main/nginx.conf' --exclude='PonyNotes-Cloud-New-main/nginx' 2>/dev/null || true
+          tar -xzf /tmp/cloud.tar.gz -C /tmp 2>/dev/null || true
+          rm -f /tmp/PonyNotes-Cloud-New-main/nginx.conf
+          rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
           mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
           rm /tmp/cloud.tar.gz
           echo "✅ Downloaded to: $TARGET_DIR"
@@ -652,7 +656,9 @@ jobs:
           echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../PonyNotes-Cloud-New"
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
-          tar -xzf /tmp/cloud.tar.gz -C /tmp --exclude='PonyNotes-Cloud-New-main/nginx.conf' --exclude='PonyNotes-Cloud-New-main/nginx' 2>/dev/null || true
+          tar -xzf /tmp/cloud.tar.gz -C /tmp 2>/dev/null || true
+          rm -f /tmp/PonyNotes-Cloud-New-main/nginx.conf
+          rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
           mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
           rm /tmp/cloud.tar.gz
           echo "✅ Downloaded to: $TARGET_DIR"
