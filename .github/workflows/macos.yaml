@@ -67,6 +67,9 @@ env:
 jobs:
   x86_64:
     runs-on: macos-13
+    # 防止任一步骤卡死后跑满 GitHub 上限（曾出现 #33 跑满 24 小时）。
+    # 超时即快速失败并保留日志，便于定位真正卡住的步骤。
+    timeout-minutes: 120
 
     if: ${{ inputs.arch == 'All' || inputs.arch == 'x86_64' }}
 
@@ -119,7 +122,10 @@ jobs:
           git clone https://github.com/rust-rocksdb/rust-rocksdb.git "$TARGET_DIR"
           cd "$TARGET_DIR"
           git checkout 1710120e4549e04ba3baa6a1ee5a5a801fa45a72
-          git submodule update --init --recursive
+          # 用 --depth 1 浅克隆子模块：rocksdb 的 C++ 源码子模块很大，
+          # 完整递归拉取在 CI 上极易卡死（疑似 #33 跑满 24 小时的主因之一）。
+          # 浅克隆只取所需快照，大幅缩短时间且不影响 librocksdb-sys 编译。
+          git submodule update --init --recursive --depth 1
           echo "✅ rust-rocksdb cloned to: $TARGET_DIR"
           ls -la "$TARGET_DIR/"
           echo "📋 Checking submodules:"
@@ -291,6 +297,9 @@ jobs:
 
       - name: Notarize PonyNotes
         continue-on-error: true
+        # notarytool --wait 可能长时间等待 Apple 公证服务；加步骤超时避免空耗整个 job 时间。
+        # 配合 continue-on-error，公证超时不致命，但不会再无限等待。
+        timeout-minutes: 30
         run: |
           xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
 
@@ -358,6 +367,8 @@ jobs:
 
   aarch64:
     runs-on: macos-latest
+    # 防止任一步骤卡死后跑满 GitHub 上限；超时即快速失败并保留日志。
+    timeout-minutes: 120
 
     if: ${{ inputs.arch == 'All' || inputs.arch == 'aarch64' }}
 
@@ -410,7 +421,10 @@ jobs:
           git clone https://github.com/rust-rocksdb/rust-rocksdb.git "$TARGET_DIR"
           cd "$TARGET_DIR"
           git checkout 1710120e4549e04ba3baa6a1ee5a5a801fa45a72
-          git submodule update --init --recursive
+          # 用 --depth 1 浅克隆子模块：rocksdb 的 C++ 源码子模块很大，
+          # 完整递归拉取在 CI 上极易卡死（疑似 #33 跑满 24 小时的主因之一）。
+          # 浅克隆只取所需快照，大幅缩短时间且不影响 librocksdb-sys 编译。
+          git submodule update --init --recursive --depth 1
           echo "✅ rust-rocksdb cloned to: $TARGET_DIR"
           ls -la "$TARGET_DIR/"
           echo "📋 Checking submodules:"
@@ -521,13 +535,16 @@ jobs:
 
       - name: Codesign PonyNotes
         run: |
-          if [ -z "${{ secrets.MACOS_CERTIFICATE }}" ]; then
+          # 修正：此处原误用 secrets.MACOS_CERTIFICATE（不存在/为空），
+          # 与 x86_64、universal 两个 job 不一致，导致 aarch64 签名被静默跳过。
+          # 统一改为 MACOS_CERTIFICATE_BASE64。
+          if [ -z "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" ]; then
             echo "⚠️ Skipping code signing - MACOS_CERTIFICATE_BASE64 not set"
             exit 0
           fi
-          
+
           echo "✍️ Code signing PonyNotes app..."
-          echo ${{ secrets.MACOS_CERTIFICATE }} | base64 --decode > certificate.p12
+          echo ${{ secrets.MACOS_CERTIFICATE_BASE64 }} | base64 --decode > certificate.p12
           security create-keychain -p action build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p action build.keychain
@@ -567,6 +584,9 @@ jobs:
 
       - name: Notarize PonyNotes
         continue-on-error: true
+        # notarytool --wait 可能长时间等待 Apple 公证服务；加步骤超时避免空耗整个 job 时间。
+        # 配合 continue-on-error，公证超时不致命，但不会再无限等待。
+        timeout-minutes: 30
         run: |
           xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
 
@@ -635,6 +655,8 @@ jobs:
 
   universal:
     runs-on: macos-latest
+    # universal 需编译 x86_64+arm64 两架构再合并，给足时间；超时即快速失败。
+    timeout-minutes: 150
 
     if: ${{ inputs.arch == 'All' || inputs.arch == 'universal' }}
 
@@ -687,7 +709,10 @@ jobs:
           git clone https://github.com/rust-rocksdb/rust-rocksdb.git "$TARGET_DIR"
           cd "$TARGET_DIR"
           git checkout 1710120e4549e04ba3baa6a1ee5a5a801fa45a72
-          git submodule update --init --recursive
+          # 用 --depth 1 浅克隆子模块：rocksdb 的 C++ 源码子模块很大，
+          # 完整递归拉取在 CI 上极易卡死（疑似 #33 跑满 24 小时的主因之一）。
+          # 浅克隆只取所需快照，大幅缩短时间且不影响 librocksdb-sys 编译。
+          git submodule update --init --recursive --depth 1
           echo "✅ rust-rocksdb cloned to: $TARGET_DIR"
           ls -la "$TARGET_DIR/"
           echo "📋 Checking submodules:"
@@ -869,6 +894,8 @@ jobs:
       - name: Notarize PonyNotes
         if: ${{ steps.secret-check.outputs.available == 'true' }}
         continue-on-error: true
+        # notarytool --wait 可能长时间等待 Apple 公证服务；加步骤超时避免空耗整个 job 时间。
+        timeout-minutes: 30
         run: |
           xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
 
