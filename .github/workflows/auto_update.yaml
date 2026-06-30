@@ -37,8 +37,8 @@ on:
         default: "AppFlowy"
 
 env:
-  FLUTTER_VERSION: "3.27.4"
-  RUST_TOOLCHAIN: "1.85.0"
+  FLUTTER_VERSION: "3.35.0"
+  RUST_TOOLCHAIN: "1.91.0"
 
 jobs:
   macos-x86_64:

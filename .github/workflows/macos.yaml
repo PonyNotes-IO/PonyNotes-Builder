@@ -10,11 +10,11 @@ on:
       branch:
         description: "Branch"
         required: true
-        default: "dev"
+        default: "dev_mobile"
       build_name:
         description: "Build Version (it should match the version in pubspec.yaml)"
         required: true
-        default: "0.9.9"
+        default: "1.0.2"
       arch:
         type: choice
         description: "Build Architecture"
@@ -60,8 +60,8 @@ on:
         type: string
 
 env:
-  FLUTTER_VERSION: "3.27.4"
-  RUST_TOOLCHAIN: "1.85.0"
+  FLUTTER_VERSION: "3.35.0"
+  RUST_TOOLCHAIN: "1.91.0"
   RUST_BACKTRACE: "1"
 
 jobs:
