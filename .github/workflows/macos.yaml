@@ -272,7 +272,31 @@ jobs:
             exit 1
           fi
           
-          /usr/bin/codesign --force --options runtime --deep --sign "${{ secrets.MACOS_CODESIGN_ID }}" "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" -v
+          # 公证硬性要求：硬化运行时(--options runtime) + TSA 时间戳(--timestamp)。
+          # 并带 codesign 兼容的 entitlements，避免 --force 重签抹掉网络权限。
+          cat > /tmp/dmg_entitlements.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          	<key>com.apple.security.app-sandbox</key>
+          	<false/>
+          	<key>com.apple.security.network.client</key>
+          	<true/>
+          	<key>com.apple.security.network.server</key>
+          	<true/>
+          	<key>com.apple.security.files.user-selected.read-write</key>
+          	<true/>
+          	<key>com.apple.security.files.downloads.read-write</key>
+          	<true/>
+          </dict>
+          </plist>
+          PLIST
+          /usr/bin/codesign --force --deep --timestamp --options runtime \
+            --entitlements /tmp/dmg_entitlements.plist \
+            --sign "${{ secrets.MACOS_CODESIGN_ID }}" \
+            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" -v
+          codesign --verify --deep --strict --verbose=2 "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" || echo "⚠️ 签名验证警告，继续"
           echo "✅ Code signing completed"
 
       - name: Create macOS dmg
@@ -295,14 +319,40 @@ jobs:
             fi
             i=$((i+1))
           done
+          # 用 Developer ID + 时间戳对 DMG 本身签名（与本地流程一致）
+          if [ -n "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" ]; then
+            /usr/bin/codesign --force --timestamp --sign "${{ secrets.MACOS_CODESIGN_ID }}" \
+              "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" -v || echo "⚠️ DMG 签名失败，继续公证"
+          fi
 
-      - name: Notarize PonyNotes
-        continue-on-error: true
+      - name: Notarize and staple PonyNotes
         # notarytool --wait 可能长时间等待 Apple 公证服务；加步骤超时避免空耗整个 job 时间。
-        # 配合 continue-on-error，公证超时不致命，但不会再无限等待。
         timeout-minutes: 30
         run: |
-          xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
+          if [ -z "${{ secrets.MACOS_NOTARY_USER }}" ] || [ -z "${{ secrets.MACOS_NOTARY_PWD }}" ] || [ -z "${{ secrets.MACOS_TEAM_ID }}" ]; then
+            echo "⚠️ 公证 secrets 未配置，跳过公证（DMG 未装订，安装会报风险）"
+            exit 0
+          fi
+          DMG="${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg"
+          echo "📤 提交公证（--wait，需数分钟）..."
+          OUT=$(xcrun notarytool submit "$DMG" \
+            --apple-id ${{ secrets.MACOS_NOTARY_USER }} \
+            --team-id ${{ secrets.MACOS_TEAM_ID }} \
+            --password ${{ secrets.MACOS_NOTARY_PWD }} \
+            --wait 2>&1) || true
+          echo "$OUT"
+          if echo "$OUT" | grep -q "status: Accepted"; then
+            echo "✅ 公证通过，开始 staple 装订票据..."
+            xcrun stapler staple "$DMG"
+            xcrun stapler validate "$DMG" && echo "✅ Staple 验证通过（离线安装不再报风险）"
+          else
+            echo "❌ 公证未通过（status 非 Accepted）。DMG 未装订，安装会报风险。"
+            SUBMIT_ID=$(echo "$OUT" | grep -m1 "id:" | awk '{print $2}')
+            if [ -n "$SUBMIT_ID" ]; then
+              xcrun notarytool log "$SUBMIT_ID" --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} 2>&1 || true
+            fi
+            exit 1
+          fi
 
       - name: Archive Asset
         working-directory: ${{ env.MACOS_APP_RELEASE_PATH }}
@@ -560,7 +610,31 @@ jobs:
             exit 1
           fi
           
-          /usr/bin/codesign --force --options runtime --deep --sign "${{ secrets.MACOS_CODESIGN_ID }}" "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" -v
+          # 公证硬性要求：硬化运行时(--options runtime) + TSA 时间戳(--timestamp)。
+          # 并带 codesign 兼容的 entitlements，避免 --force 重签抹掉网络权限。
+          cat > /tmp/dmg_entitlements.plist <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          	<key>com.apple.security.app-sandbox</key>
+          	<false/>
+          	<key>com.apple.security.network.client</key>
+          	<true/>
+          	<key>com.apple.security.network.server</key>
+          	<true/>
+          	<key>com.apple.security.files.user-selected.read-write</key>
+          	<true/>
+          	<key>com.apple.security.files.downloads.read-write</key>
+          	<true/>
+          </dict>
+          </plist>
+          PLIST
+          /usr/bin/codesign --force --deep --timestamp --options runtime \
+            --entitlements /tmp/dmg_entitlements.plist \
+            --sign "${{ secrets.MACOS_CODESIGN_ID }}" \
+            "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" -v
+          codesign --verify --deep --strict --verbose=2 "${{ env.MACOS_APP_RELEASE_PATH }}/PonyNotes.app" || echo "⚠️ 签名验证警告，继续"
           echo "✅ Code signing completed"
 
       - name: Create macOS dmg
@@ -583,14 +657,40 @@ jobs:
             fi
             i=$((i+1))
           done
+          # 用 Developer ID + 时间戳对 DMG 本身签名（与本地流程一致）
+          if [ -n "${{ secrets.MACOS_CERTIFICATE_BASE64 }}" ]; then
+            /usr/bin/codesign --force --timestamp --sign "${{ secrets.MACOS_CODESIGN_ID }}" \
+              "${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg" -v || echo "⚠️ DMG 签名失败，继续公证"
+          fi
 
-      - name: Notarize PonyNotes
-        continue-on-error: true
+      - name: Notarize and staple PonyNotes
         # notarytool --wait 可能长时间等待 Apple 公证服务；加步骤超时避免空耗整个 job 时间。
-        # 配合 continue-on-error，公证超时不致命，但不会再无限等待。
         timeout-minutes: 30
         run: |
-          xcrun notarytool submit ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} -v -f "json" --wait
+          if [ -z "${{ secrets.MACOS_NOTARY_USER }}" ] || [ -z "${{ secrets.MACOS_NOTARY_PWD }}" ] || [ -z "${{ secrets.MACOS_TEAM_ID }}" ]; then
+            echo "⚠️ 公证 secrets 未配置，跳过公证（DMG 未装订，安装会报风险）"
+            exit 0
+          fi
+          DMG="${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg"
+          echo "📤 提交公证（--wait，需数分钟）..."
+          OUT=$(xcrun notarytool submit "$DMG" \
+            --apple-id ${{ secrets.MACOS_NOTARY_USER }} \
+            --team-id ${{ secrets.MACOS_TEAM_ID }} \
+            --password ${{ secrets.MACOS_NOTARY_PWD }} \
+            --wait 2>&1) || true
+          echo "$OUT"
+          if echo "$OUT" | grep -q "status: Accepted"; then
+            echo "✅ 公证通过，开始 staple 装订票据..."
+            xcrun stapler staple "$DMG"
+            xcrun stapler validate "$DMG" && echo "✅ Staple 验证通过（离线安装不再报风险）"
+          else
+            echo "❌ 公证未通过（status 非 Accepted）。DMG 未装订，安装会报风险。"
+            SUBMIT_ID=$(echo "$OUT" | grep -m1 "id:" | awk '{print $2}')
+            if [ -n "$SUBMIT_ID" ]; then
+              xcrun notarytool log "$SUBMIT_ID" --apple-id ${{ secrets.MACOS_NOTARY_USER }} --team-id ${{ secrets.MACOS_TEAM_ID }} --password ${{ secrets.MACOS_NOTARY_PWD }} 2>&1 || true
+            fi
+            exit 1
+          fi
 
       - name: Archive Asset
         working-directory: ${{ env.MACOS_APP_RELEASE_PATH }}
