@@ -912,6 +912,22 @@ jobs:
           git config --global credential.helper store
           echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
 
+      # Dart 的 *.pb.dart 由各 flowy crate 的 build.rs 生成到源码树(lib/protobuf)，但该目录被 gitignore，
+      # 全新 checkout 后不存在；一旦 rust-cache 命中，cargo 认为这些 crate "fresh" 会跳过 build.rs，
+      # 导致 pb.dart 不再生成 → flutter build 报 "SelectOptionPB isn't a type" / pb.dart No such file。
+      # 这里清掉 flowy 各 crate 的 build-script 指纹与 codegen 缓存，强制 build.rs 重跑重生成全部 pb。
+      - name: Force regenerate Dart protobuf (avoid stale rust-cache skipping codegen)
+        working-directory: frontend
+        run: |
+          rm -rf rust-lib/build-tool/flowy-codegen/.cache 2>/dev/null || true
+          for d in rust-lib/target/release \
+                   rust-lib/target/x86_64-apple-darwin/release \
+                   rust-lib/target/aarch64-apple-darwin/release; do
+            rm -rf "$d"/.fingerprint/flowy-* "$d"/build/flowy-* 2>/dev/null || true
+          done
+          rm -rf appflowy_flutter/packages/appflowy_backend/lib/protobuf 2>/dev/null || true
+          echo "✅ 已清理 flowy build-script 指纹与 codegen 缓存，构建将强制重新生成 Dart protobuf"
+
       - name: Build PonyNotes (Universal)
         working-directory: frontend
         env:
