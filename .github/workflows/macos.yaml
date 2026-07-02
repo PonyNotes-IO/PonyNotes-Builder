@@ -209,6 +209,8 @@ jobs:
         run: |
           echo "INTERNAL_BUILD=${{ inputs.internal_build }}" >> .env
           echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
+          echo "APPFLOWY_CLOUD_URL=https://api.xiaomabiji.com" >> .env
+          echo "AUTHENTICATOR_TYPE=3" >> .env
         shell: bash
 
       - name: Configure Git credentials for Cargo
@@ -281,7 +283,6 @@ jobs:
             create-dmg \
             --volname ${{ env.MACOS_DMG_NAME }} \
             --hide-extension "PonyNotes.app" \
-            --background frontend/scripts/dmg_assets/AppFlowyInstallerBackground.jpg \
             --window-size 600 450 \
             --icon-size 94 \
             --icon "PonyNotes.app" 141 249 \
@@ -508,6 +509,8 @@ jobs:
         run: |
           echo "INTERNAL_BUILD=${{ inputs.internal_build }}" >> .env
           echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
+          echo "APPFLOWY_CLOUD_URL=https://api.xiaomabiji.com" >> .env
+          echo "AUTHENTICATOR_TYPE=3" >> .env
         shell: bash
 
       - name: Configure Git credentials for Cargo
@@ -568,7 +571,6 @@ jobs:
             create-dmg \
             --volname ${{ env.MACOS_DMG_NAME }} \
             --hide-extension "PonyNotes.app" \
-            --background frontend/scripts/dmg_assets/AppFlowyInstallerBackground.jpg \
             --window-size 600 450 \
             --icon-size 94 \
             --icon "PonyNotes.app" 141 249 \
@@ -800,6 +802,8 @@ jobs:
         run: |
           echo "INTERNAL_BUILD=${{ inputs.internal_build }}" >> .env
           echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
+          echo "APPFLOWY_CLOUD_URL=https://api.xiaomabiji.com" >> .env
+          echo "AUTHENTICATOR_TYPE=3" >> .env
         shell: bash
 
       - name: Configure Git credentials for Cargo
@@ -863,7 +867,6 @@ jobs:
             create-dmg \
             --volname ${{ env.MACOS_DMG_NAME }} \
             --hide-extension "PonyNotes.app" \
-            --background frontend/scripts/dmg_assets/AppFlowyInstallerBackground.jpg \
             --window-size 600 450 \
             --icon-size 94 \
             --icon "PonyNotes.app" 141 249 \
