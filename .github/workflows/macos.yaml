@@ -17,13 +17,14 @@ on:
         default: "1.0.2"
       arch:
         type: choice
-        description: "Build Architecture"
+        description: "Build Architecture (默认 universal：单包通用于 Intel/Apple Silicon)"
         required: true
+        default: universal
         options:
+          - universal
           - All
           - x86_64
           - aarch64
-          - universal
       internal_build:
         type: choice
         description: "Internal Build Type (1 for internal, 0 for external)"
