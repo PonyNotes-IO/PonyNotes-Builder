@@ -226,21 +226,34 @@ jobs:
         working-directory: frontend
         shell: bash
         run: |
-          set -e
-          cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-windows-x86 copy-to-product
-          dart ./scripts/flutter_release_build/build_flowy.dart include-directives . ${{ inputs.build_name }}
+          set -o pipefail
+          # 失败时把日志尾部写入 ::error:: 注解,便于匿名 Checks API 读取失败原因
+          if ! {
+            cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-windows-x86 copy-to-product &&
+            dart ./scripts/flutter_release_build/build_flowy.dart include-directives . ${{ inputs.build_name }}
+          } 2>&1 | tee /tmp/copy_step.log; then
+            grep -iE "error|failed|not found|no such|assert|panic" /tmp/copy_step.log | head -8 | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            TAIL=$(tail -c 3000 /tmp/copy_step.log | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error::COPY-LOG-TAIL: ${TAIL}"
+            exit 1
+          fi
 
       - name: Verify build output
         shell: bash
         run: |
-          echo "=== Flutter build output ==="
-          ls -la frontend/appflowy_flutter/build/windows/x64/runner/Release/ || echo "Flutter build output NOT FOUND"
-          echo "=== Product output ==="
-          ls -la "${{ env.WINDOWS_APP_RELEASE_PATH }}/PonyNotes/" || echo "Product output NOT FOUND"
-          echo "=== Product directory ==="
-          ls -la "${{ env.WINDOWS_APP_RELEASE_PATH }}/" || echo "Product directory NOT FOUND"
+          {
+            echo "=== Flutter build output ==="
+            ls -la frontend/appflowy_flutter/build/windows/x64/runner/Release/ || echo "Flutter build output NOT FOUND"
+            echo "=== Product output ==="
+            ls -la "${{ env.WINDOWS_APP_RELEASE_PATH }}/PonyNotes/" || echo "Product output NOT FOUND"
+            echo "=== Product directory ==="
+            ls -la "${{ env.WINDOWS_APP_RELEASE_PATH }}/" || echo "Product directory NOT FOUND"
+          } 2>&1 | tee /tmp/verify_step.log
           if [ ! -f "${{ env.WINDOWS_APP_RELEASE_PATH }}/PonyNotes/PonyNotes.exe" ]; then
-            echo "ERROR: PonyNotes.exe not found!"
+            TAIL=$(tail -c 3000 /tmp/verify_step.log | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error::PonyNotes.exe not found. VERIFY-LOG: ${TAIL}"
             exit 1
           fi
 
