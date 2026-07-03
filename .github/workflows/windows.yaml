@@ -210,9 +210,17 @@ jobs:
         working-directory: frontend/appflowy_flutter
         shell: bash
         run: |
-          set -e
+          set -o pipefail
           flutter pub get
-          flutter build windows --release --build-name=${{ inputs.build_name }}
+          # 失败时把错误行和日志尾部写入 ::error:: 注解,便于通过匿名 Checks API 读取失败原因
+          if ! flutter build windows --release --build-name=${{ inputs.build_name }} 2>&1 | tee /tmp/flutter_build.log; then
+            grep -iE "error|exception|undefined|unresolved" /tmp/flutter_build.log | head -8 | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            TAIL=$(tail -c 3000 /tmp/flutter_build.log | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error::BUILD-LOG-TAIL: ${TAIL}"
+            exit 1
+          fi
 
       - name: Copy build output and restore directives
         working-directory: frontend
