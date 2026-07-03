@@ -227,9 +227,15 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          # 不用 cargo make copy-to-product:其 Windows 实现是 duckscript glob_cp,
+          # 递归拷贝海量 flutter_assets 时 cargo-make 栈溢出(exit -1073741571/0xC00000FD)。
+          # 改用 bash cp -R,与 copy-to-product-macos 的 shell 实现同思路。
+          PRODUCT_DIR="appflowy_flutter/product/${{ inputs.build_name }}/windows/PonyNotes"
           # 失败时把日志尾部写入 ::error:: 注解,便于匿名 Checks API 读取失败原因
           if ! {
-            cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-windows-x86 copy-to-product &&
+            rm -rf "$PRODUCT_DIR" &&
+            mkdir -p "$PRODUCT_DIR" &&
+            cp -R appflowy_flutter/build/windows/x64/runner/Release/. "$PRODUCT_DIR/" &&
             dart ./scripts/flutter_release_build/build_flowy.dart include-directives . ${{ inputs.build_name }}
           } 2>&1 | tee /tmp/copy_step.log; then
             grep -iE "error|failed|not found|no such|assert|panic" /tmp/copy_step.log | head -8 | while IFS= read -r line; do
