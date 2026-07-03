@@ -47,7 +47,7 @@ on:
         type: string
 
 env:
-  FLUTTER_VERSION: "3.35.0"
+  FLUTTER_VERSION: "3.35.1"  # Windows 官方清单无 3.35.0(仅 macOS/Linux 发布),用同系列 3.35.1
   RUST_TOOLCHAIN: "1.91.0"
 
 jobs:
