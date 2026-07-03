@@ -285,7 +285,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          if ! iscc "/F${{ env.WINDOWS_INSTALLER_NAME }}" inno_setup_config.iss "/DAppVersion=${{ inputs.build_name }}" 2>&1 | tee /tmp/iscc.log; then
+          # MSYS_NO_PATHCONV=1:阻止 Git bash 把 /F、/D 开头的 iscc 参数当 POSIX 路径改写,
+          # 否则 iscc 报 "You may not specify more than one script filename"
+          if ! MSYS_NO_PATHCONV=1 iscc "/F${{ env.WINDOWS_INSTALLER_NAME }}" inno_setup_config.iss "/DAppVersion=${{ inputs.build_name }}" 2>&1 | tee /tmp/iscc.log; then
             TAIL=$(tail -c 3000 /tmp/iscc.log | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
             echo "::error::ISCC-LOG-TAIL: ${TAIL}"
             exit 1
