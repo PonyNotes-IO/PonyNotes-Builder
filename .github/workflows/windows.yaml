@@ -274,10 +274,22 @@ jobs:
         run: |
           cp scripts/windows_installer/* ../${{ env.WINDOWS_APP_RELEASE_PATH }}
 
+      # 上游 AppFlowy-Builder 同款步骤:runner 镜像预装的 Inno Setup 不在 PATH,
+      # choco 安装后 iscc 才可直接调用
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+
       - name: Build installer executable
         working-directory: ${{ env.WINDOWS_APP_RELEASE_PATH }}
+        shell: bash
         run: |
-          iscc /F${{ env.WINDOWS_INSTALLER_NAME }} inno_setup_config.iss /DAppVersion=${{ inputs.build_name }}
+          set -o pipefail
+          if ! iscc "/F${{ env.WINDOWS_INSTALLER_NAME }}" inno_setup_config.iss "/DAppVersion=${{ inputs.build_name }}" 2>&1 | tee /tmp/iscc.log; then
+            TAIL=$(tail -c 3000 /tmp/iscc.log | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error::ISCC-LOG-TAIL: ${TAIL}"
+            exit 1
+          fi
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
