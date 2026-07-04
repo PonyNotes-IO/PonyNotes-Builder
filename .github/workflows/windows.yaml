@@ -10,11 +10,11 @@ on:
       branch:
         description: "Branch"
         required: true
-        default: "dev"
+        default: "dev_mobile"
       build_name:
         description: "Build Version (it should match the version in pubspec.yaml)"
         required: true
-        default: "0.9.9"
+        default: "1.0.5"
       internal_build:
         type: choice
         description: "Internal Build Type (1 for internal, 0 for external)"
