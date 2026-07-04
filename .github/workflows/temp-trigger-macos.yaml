@@ -1,0 +1,17 @@
+# 临时触发文件:本机无 gh/API token,借 push 事件启动 macOS x86_64+aarch64 构建。
+# 验证通过合入 main 后请删除本文件。
+name: Temp Trigger macOS Build
+on:
+  push:
+    branches: [fix/windows-runner-vs2022]
+
+jobs:
+  macos:
+    uses: ./.github/workflows/macos.yaml
+    with:
+      repo: PonyNotes-IO/PonyNotes-New
+      branch: dev_mobile
+      build_name: "1.0.5"
+      arch: "All"
+      internal_build: "1"
+    secrets: inherit

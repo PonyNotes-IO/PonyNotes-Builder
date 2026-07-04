@@ -14,7 +14,7 @@ on:
       build_name:
         description: "Build Version (it should match the version in pubspec.yaml)"
         required: true
-        default: "1.0.2"
+        default: "1.0.5"
       arch:
         type: choice
         description: "Build Architecture (默认 universal：单包通用于 Intel/Apple Silicon)"
@@ -67,7 +67,9 @@ env:
 
 jobs:
   x86_64:
-    runs-on: macos-13
+    # macos-13(最后一代 Intel 免费镜像)已于 2026 退役,GitHub 提供 macos-15-intel
+    # 作为 Intel 构建的过渡标签(见 actions/runner-images README)
+    runs-on: macos-15-intel
     # 防止任一步骤卡死后跑满 GitHub 上限（曾出现 #33 跑满 24 小时）。
     # 超时即快速失败并保留日志，便于定位真正卡住的步骤。
     timeout-minutes: 120
@@ -219,6 +221,21 @@ jobs:
           git config --global credential.helper store
           echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
 
+
+      # 与 universal job 相同的修复:rust-cache 命中陈旧缓存会跳过 build.rs,
+      # 导致 pb.dart/collab proto 不再生成,编译报 "SelectOptionPB isn't a type"
+      - name: Force regenerate generated sources (avoid stale rust-cache skipping build scripts)
+        working-directory: frontend
+        run: |
+          rm -rf rust-lib/build-tool/flowy-codegen/.cache 2>/dev/null || true
+          for d in rust-lib/target/release \
+                   rust-lib/target/x86_64-apple-darwin/release \
+                   rust-lib/target/aarch64-apple-darwin/release; do
+            rm -rf "$d"/.fingerprint/flowy-* "$d"/build/flowy-* \
+                   "$d"/.fingerprint/collab-entity-* "$d"/build/collab-entity-* 2>/dev/null || true
+          done
+          rm -rf appflowy_flutter/packages/appflowy_backend/lib/protobuf 2>/dev/null || true
+          echo "✅ 已清理 flowy + collab-entity 的 build-script 指纹与 codegen 缓存，构建将强制重新生成 pb.dart 与 collab proto"
 
       - name: Build PonyNotes (x86_64)
         working-directory: frontend
@@ -568,6 +585,21 @@ jobs:
         run: |
           git config --global credential.helper store
           echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
+
+      # 与 universal job 相同的修复:rust-cache 命中陈旧缓存会跳过 build.rs,
+      # 导致 pb.dart/collab proto 不再生成,编译报 "SelectOptionPB isn't a type"
+      - name: Force regenerate generated sources (avoid stale rust-cache skipping build scripts)
+        working-directory: frontend
+        run: |
+          rm -rf rust-lib/build-tool/flowy-codegen/.cache 2>/dev/null || true
+          for d in rust-lib/target/release \
+                   rust-lib/target/x86_64-apple-darwin/release \
+                   rust-lib/target/aarch64-apple-darwin/release; do
+            rm -rf "$d"/.fingerprint/flowy-* "$d"/build/flowy-* \
+                   "$d"/.fingerprint/collab-entity-* "$d"/build/collab-entity-* 2>/dev/null || true
+          done
+          rm -rf appflowy_flutter/packages/appflowy_backend/lib/protobuf 2>/dev/null || true
+          echo "✅ 已清理 flowy + collab-entity 的 build-script 指纹与 codegen 缓存，构建将强制重新生成 pb.dart 与 collab proto"
 
       - name: Build PonyNotes (aarch64)
         working-directory: frontend
