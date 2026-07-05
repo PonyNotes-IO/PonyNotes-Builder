@@ -1,0 +1,25 @@
+# 临时触发文件:本机无 gh/API token,借 push 事件启动 dev_mobile_new 分支的
+# macOS(arch=All:universal+x86_64+aarch64) 与 Windows 构建。用完删除。
+name: Temp Trigger All Builds
+on:
+  push:
+    branches: [fix/windows-runner-vs2022]
+
+jobs:
+  macos:
+    uses: ./.github/workflows/macos.yaml
+    with:
+      repo: PonyNotes-IO/PonyNotes-New
+      branch: dev_mobile_new
+      build_name: "1.0.5"
+      arch: "All"
+      internal_build: "1"
+    secrets: inherit
+  windows:
+    uses: ./.github/workflows/windows.yaml
+    with:
+      repo: PonyNotes-IO/PonyNotes-New
+      branch: dev_mobile_new
+      build_name: "1.0.5"
+      internal_build: "1"
+    secrets: inherit
