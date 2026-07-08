@@ -57,7 +57,11 @@ jobs:
       WINDOWS_ZIP_NAME: PonyNotes-${{ inputs.build_name }}-windows-x86_64.zip
       WINDOWS_INSTALLER_NAME: PonyNotes-${{ inputs.build_name }}-windows-x86_64
 
-    runs-on: windows-latest
+    # 2026-07-08: windows-latest 本周滚动到 windows-2025-vs2026 镜像(只带 VS2026),
+    # 但 Flutter 3.35.1 的 windows 构建工具仍按 "Visual Studio 16 2019" 生成器探测,
+    # 导致 CMake 报错 "could not find any instance of Visual Studio"。
+    # 固定用 windows-2022(带 VS2022,标签本身不随 latest 滚动)规避该问题。
+    runs-on: windows-2022
 
     steps:
       - name: Checkout source code
