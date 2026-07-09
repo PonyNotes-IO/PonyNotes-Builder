@@ -14,7 +14,7 @@ on:
       build_name:
         description: "Build Version (it should match the version in pubspec.yaml)"
         required: true
-        default: "1.0.2"
+        default: "1.0.5"
       arch:
         type: choice
         description: "Build Architecture (默认 universal：单包通用于 Intel/Apple Silicon)"
@@ -67,10 +67,12 @@ env:
 
 jobs:
   x86_64:
-    runs-on: macos-13
+    # macos-13(最后一代 Intel 免费镜像)已于 2026 退役,GitHub 提供 macos-15-intel
+    # 作为 Intel 构建的过渡标签(见 actions/runner-images README)
+    runs-on: macos-15-intel
     # 防止任一步骤卡死后跑满 GitHub 上限（曾出现 #33 跑满 24 小时）。
-    # 超时即快速失败并保留日志，便于定位真正卡住的步骤。
-    timeout-minutes: 120
+    # Intel runner 比 M 系列慢约一倍,构建步骤内置 180 分钟 watchdog,job 上限给 200。
+    timeout-minutes: 200
 
     if: ${{ inputs.arch == 'All' || inputs.arch == 'x86_64' }}
 
@@ -220,6 +222,21 @@ jobs:
           echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
 
 
+      # 与 universal job 相同的修复:rust-cache 命中陈旧缓存会跳过 build.rs,
+      # 导致 pb.dart/collab proto 不再生成,编译报 "SelectOptionPB isn't a type"
+      - name: Force regenerate generated sources (avoid stale rust-cache skipping build scripts)
+        working-directory: frontend
+        run: |
+          rm -rf rust-lib/build-tool/flowy-codegen/.cache 2>/dev/null || true
+          for d in rust-lib/target/release \
+                   rust-lib/target/x86_64-apple-darwin/release \
+                   rust-lib/target/aarch64-apple-darwin/release; do
+            rm -rf "$d"/.fingerprint/flowy-* "$d"/build/flowy-* \
+                   "$d"/.fingerprint/collab-entity-* "$d"/build/collab-entity-* 2>/dev/null || true
+          done
+          rm -rf appflowy_flutter/packages/appflowy_backend/lib/protobuf 2>/dev/null || true
+          echo "✅ 已清理 flowy + collab-entity 的 build-script 指纹与 codegen 缓存，构建将强制重新生成 pb.dart 与 collab proto"
+
       - name: Build PonyNotes (x86_64)
         working-directory: frontend
         env:
@@ -227,14 +244,39 @@ jobs:
           CARGO_NET_RETRY: "10"
           CARGO_HTTP_TIMEOUT: "120"
           GIT_TERMINAL_PROMPT: "0"
+        shell: bash
         run: |
           echo "🔧 Building PonyNotes for x86_64 (Intel)"
           echo "Architecture: $(uname -m)"
           echo "Rust targets: $(rustup target list --installed)"
-          
+
           flutter config --enable-macos-desktop
-          dart ./scripts/flutter_release_build/build_flowy.dart run . ${{ inputs.build_name }}
-          
+
+          # 不再用 build_flowy.dart run 包装(其 Process.start 无 stdin/不 await exitCode,
+          # 曾致 x86_64/aarch64 两架构构建同时无输出卡死 2 小时到超时);
+          # 与 universal/Windows 相同模式:bash 直接跑 cargo make,前后手动 exclude/include directives
+          dart ./scripts/flutter_release_build/build_flowy.dart exclude-directives . ${{ inputs.build_name }}
+          ( set -o pipefail; cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-mac-x86_64 appflowy 2>&1 | tee /tmp/build_arch.log ) &
+          BUILD_PID=$!
+          # watchdog:180 分钟未结束视为卡死,先于 job 级超时杀掉,把日志尾部写入注解保留现场
+          WAITED=0
+          while kill -0 $BUILD_PID 2>/dev/null; do
+            sleep 60; WAITED=$((WAITED+1))
+            if [ $WAITED -ge 180 ]; then
+              TAIL=$(tail -c 3000 /tmp/build_arch.log | sed -e 's/%/%25/g' | tr -d '\r' | awk '{printf "%s%%0A", $0}')
+              echo "::error::BUILD HUNG >180min. LOG-TAIL: ${TAIL}"
+              kill -9 $BUILD_PID 2>/dev/null
+              exit 1
+            fi
+          done
+          wait $BUILD_PID; RC=$?
+          if [ $RC -ne 0 ]; then
+            TAIL=$(tail -c 3000 /tmp/build_arch.log | sed -e 's/%/%25/g' | tr -d '\r' | awk '{printf "%s%%0A", $0}')
+            echo "::error::BUILD FAILED rc=$RC. LOG-TAIL: ${TAIL}"
+            exit 1
+          fi
+          dart ./scripts/flutter_release_build/build_flowy.dart include-directives . ${{ inputs.build_name }}
+
           echo "✅ x86_64 build completed"
           ls -la appflowy_flutter/product/${{ inputs.build_name }}/macos/Release/
 
@@ -246,6 +288,11 @@ jobs:
             exit 0
           fi
           
+          # checkout 的是 PonyNotes-New 仓库,该脚本只在 Builder 仓库里,工作区无此文件
+          if [ ! -f debug_certificate.sh ]; then
+            echo "⚠️ debug_certificate.sh 不在工作区(checkout 为应用仓库),跳过"
+            exit 0
+          fi
           echo "🔍 Debugging certificate..."
           chmod +x debug_certificate.sh
           export MACOS_CERTIFICATE_BASE64="${{ secrets.MACOS_CERTIFICATE_BASE64 }}"
@@ -569,6 +616,21 @@ jobs:
           git config --global credential.helper store
           echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
 
+      # 与 universal job 相同的修复:rust-cache 命中陈旧缓存会跳过 build.rs,
+      # 导致 pb.dart/collab proto 不再生成,编译报 "SelectOptionPB isn't a type"
+      - name: Force regenerate generated sources (avoid stale rust-cache skipping build scripts)
+        working-directory: frontend
+        run: |
+          rm -rf rust-lib/build-tool/flowy-codegen/.cache 2>/dev/null || true
+          for d in rust-lib/target/release \
+                   rust-lib/target/x86_64-apple-darwin/release \
+                   rust-lib/target/aarch64-apple-darwin/release; do
+            rm -rf "$d"/.fingerprint/flowy-* "$d"/build/flowy-* \
+                   "$d"/.fingerprint/collab-entity-* "$d"/build/collab-entity-* 2>/dev/null || true
+          done
+          rm -rf appflowy_flutter/packages/appflowy_backend/lib/protobuf 2>/dev/null || true
+          echo "✅ 已清理 flowy + collab-entity 的 build-script 指纹与 codegen 缓存，构建将强制重新生成 pb.dart 与 collab proto"
+
       - name: Build PonyNotes (aarch64)
         working-directory: frontend
         env:
@@ -576,13 +638,38 @@ jobs:
           CARGO_NET_RETRY: "10"
           CARGO_HTTP_TIMEOUT: "120"
           GIT_TERMINAL_PROMPT: "0"
+        shell: bash
         run: |
           echo "🔧 Building PonyNotes for aarch64 (ARM64)"
           echo "Architecture: $(uname -m)"
           echo "Rust targets: $(rustup target list --installed)"
-          
+
           flutter config --enable-macos-desktop
-          dart ./scripts/flutter_release_build/build_flowy.dart run . ${{ inputs.build_name }}
+
+          # 不再用 build_flowy.dart run 包装(其 Process.start 无 stdin/不 await exitCode,
+          # 曾致 x86_64/aarch64 两架构构建同时无输出卡死 2 小时到超时);
+          # 与 universal/Windows 相同模式:bash 直接跑 cargo make,前后手动 exclude/include directives
+          dart ./scripts/flutter_release_build/build_flowy.dart exclude-directives . ${{ inputs.build_name }}
+          ( set -o pipefail; cargo make --env APP_VERSION=${{ inputs.build_name }} --profile production-mac-arm64 appflowy 2>&1 | tee /tmp/build_arch.log ) &
+          BUILD_PID=$!
+          # watchdog:100 分钟未结束视为卡死,先于 job 级超时杀掉,把日志尾部写入注解保留现场
+          WAITED=0
+          while kill -0 $BUILD_PID 2>/dev/null; do
+            sleep 60; WAITED=$((WAITED+1))
+            if [ $WAITED -ge 100 ]; then
+              TAIL=$(tail -c 3000 /tmp/build_arch.log | sed -e 's/%/%25/g' | tr -d '\r' | awk '{printf "%s%%0A", $0}')
+              echo "::error::BUILD HUNG >100min. LOG-TAIL: ${TAIL}"
+              kill -9 $BUILD_PID 2>/dev/null
+              exit 1
+            fi
+          done
+          wait $BUILD_PID; RC=$?
+          if [ $RC -ne 0 ]; then
+            TAIL=$(tail -c 3000 /tmp/build_arch.log | sed -e 's/%/%25/g' | tr -d '\r' | awk '{printf "%s%%0A", $0}')
+            echo "::error::BUILD FAILED rc=$RC. LOG-TAIL: ${TAIL}"
+            exit 1
+          fi
+          dart ./scripts/flutter_release_build/build_flowy.dart include-directives . ${{ inputs.build_name }}
           
           echo "✅ aarch64 build completed"
           ls -la appflowy_flutter/product/${{ inputs.build_name }}/macos/Release/
