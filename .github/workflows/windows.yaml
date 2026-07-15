@@ -56,6 +56,11 @@ jobs:
       WINDOWS_APP_RELEASE_PATH: frontend\appflowy_flutter\product\${{ inputs.build_name }}\windows
       WINDOWS_ZIP_NAME: PonyNotes-${{ inputs.build_name }}-windows-x86_64.zip
       WINDOWS_INSTALLER_NAME: PonyNotes-${{ inputs.build_name }}-windows-x86_64
+      # Windows 代码签名证书(解决安装报毒/SmartScreen 拦截)。
+      # 在仓库 Secrets 配置 WINDOWS_CERT_PFX_BASE64(pfx 文件 base64)与
+      # WINDOWS_CERT_PASSWORD 后自动启用签名;未配置时跳过签名步骤(产物不签名)。
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
 
     # windows-latest/windows-2025 已于 2026-06 迁移到 windows-2025-vs2026 镜像
     # (https://github.com/actions/runner-images/issues/14017)，该镜像只装 Visual Studio 2026 (VS 18)。
@@ -263,6 +268,20 @@ jobs:
             exit 1
           fi
 
+      # 在打包(zip/安装器)之前给主程序签名,zip 绿色版与安装器内的 exe 都是签过名的。
+      # 未配置证书 Secrets 时跳过——产物不签名,Windows 上会有 SmartScreen/杀软提示。
+      - name: Sign application binaries
+        if: env.WINDOWS_CERT_PFX_BASE64 != ''
+        shell: pwsh
+        run: |
+          $pfx = "$env:RUNNER_TEMP\codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          & $signtool.FullName sign /f $pfx /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 "${{ env.WINDOWS_APP_RELEASE_PATH }}\PonyNotes\PonyNotes.exe"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & $signtool.FullName verify /pa "${{ env.WINDOWS_APP_RELEASE_PATH }}\PonyNotes\PonyNotes.exe"
+          Remove-Item $pfx
+
       - name: Archive Asset
         uses: vimtor/action-zip@v1
         with:
@@ -292,6 +311,19 @@ jobs:
             echo "::error::ISCC-LOG-TAIL: ${TAIL}"
             exit 1
           fi
+
+      # 安装器本体也要签名,否则下载安装时仍会被 SmartScreen/杀软拦截
+      - name: Sign installer executable
+        if: env.WINDOWS_CERT_PFX_BASE64 != ''
+        shell: pwsh
+        run: |
+          $pfx = "$env:RUNNER_TEMP\codesign.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX_BASE64))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          & $signtool.FullName sign /f $pfx /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 "${{ env.WINDOWS_APP_RELEASE_PATH }}\Output\${{ env.WINDOWS_INSTALLER_NAME }}.exe"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & $signtool.FullName verify /pa "${{ env.WINDOWS_APP_RELEASE_PATH }}\Output\${{ env.WINDOWS_INSTALLER_NAME }}.exe"
+          Remove-Item $pfx
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
