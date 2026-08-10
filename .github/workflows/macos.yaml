@@ -94,9 +94,19 @@ jobs:
         with:
           repository: PonyNotes-IO/PonyNotes-Cloud-New
           ref: main
-          path: ../PonyNotes-Cloud-New
+          path: PonyNotes-Cloud-New
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           fetch-depth: 1
+
+      - name: Align PonyNotes-Cloud-New path for client-api
+        run: |
+          SOURCE_DIR="${GITHUB_WORKSPACE}/PonyNotes-Cloud-New"
+          TARGET_DIR="${GITHUB_WORKSPACE}/../PonyNotes-Cloud-New"
+          test ! -e "$TARGET_DIR"
+          mv "$SOURCE_DIR" "$TARGET_DIR"
+          echo "✅ Cloud repository aligned to: $TARGET_DIR"
+          test -f "$TARGET_DIR/Cargo.toml"
+          test -d "$TARGET_DIR/libs/client-api/src"
 
       - name: Download AppFlowy-Collab (for collab dependencies)
         run: |
