@@ -238,9 +238,10 @@ jobs:
       - name: Install prerequisites
         working-directory: frontend
         run: |
-          # 两个 ABI 都要装：sdk-build-android-all 会依次构建 arm64-v8a 和 x86_64，
-          # 之前只装了 aarch64，x86_64 直接报 "can't find crate for core"。
+          # sdk-build-android-ci 构建 arm64-v8a + armeabi-v7a；
+          # x86_64 一并装上，以免任务链改动时再次踩 "can't find crate for core"。
           rustup target install aarch64-linux-android
+          rustup target install armv7-linux-androideabi
           rustup target install x86_64-linux-android
           rustup target list --installed | grep android
           cargo install duckscript_cli --force --locked
@@ -285,7 +286,12 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          cargo make --profile production-android appflowy-core-dev-android
+          # 用 -ci 任务链，不要用 appflowy-core-dev-android：
+          # 后者的 post-mobile-android-multiarch 调 powershell 跑 copy_android_libs.ps1，
+          # 该脚本是 Windows 专用（NDK 路径硬编码 D:\Android\...），Linux 上必然失败。
+          # -ci 链走跨平台的 post-mobile-android（duckscript 拷贝），
+          # 是仓库本来就为 CI 准备好的路径。
+          cargo make --profile production-android appflowy-core-dev-android-ci
           cargo make --profile production-android code_generation
 
           cd appflowy_flutter
