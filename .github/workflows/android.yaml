@@ -217,6 +217,22 @@ jobs:
           echo "✅ 已剥离，剩余内容："
           cat "$GP"
 
+      # sdk-build-android-ci 的 cargo ndk 没带 --release，打出来的是 debug 产物：
+      # libdart_ffi.so 单是 arm64 就 120 MB，整包 171 MB（安装后 419 MB）。
+      # production-android profile 里 BUILD_FLAG 本就是 release，此处补齐即可。
+      # cargo-ndk 对 release 产物默认会 strip。
+      - name: Build Rust in release profile
+        run: |
+          MT="${GITHUB_WORKSPACE}/frontend/scripts/makefile/mobile.toml"
+          sed -i 's|-o ./jniLibs build --package dart-ffi|-o ./jniLibs build --release --package dart-ffi|' "$MT"
+          echo "sdk-build-android-ci 的构建命令："
+          grep -A6 '^\[tasks.sdk-build-android-ci\]' "$MT" | grep "cargo ndk"
+          if ! grep -A6 '^\[tasks.sdk-build-android-ci\]' "$MT" | grep -q -- "--release"; then
+            echo "❌ --release 未注入成功，构建命令可能已变更"
+            exit 1
+          fi
+          echo "✅ 已切换为 release profile"
+
       - uses: actions/setup-java@v4
         with:
           distribution: "temurin" # See 'Supported distributions' for available options
@@ -314,11 +330,18 @@ jobs:
           cargo make --profile production-android appflowy-core-dev-android-ci
           cargo make --profile production-android code_generation
 
+          echo "📋 编译出的 Rust 库："
+          ls -lh rust-lib/jniLibs/*/ || true
+
           cd appflowy_flutter
+          # --target-platform 必须与上面 sdk-build-android-ci 实际编译的 ABI 一致。
+          # 该任务只编 arm64-v8a + armeabi-v7a，而 flutter/mpv/pdfium 等插件自带
+          # x86_64 版本，不加限制的话 APK 会声明支持 x86_64 却缺少 libdart_ffi.so，
+          # 在 x86_64 设备与模拟器上一启动就崩。
           if [ ${{ inputs.build_type }} = "apk" ]; then
-            flutter build apk --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            flutter build apk --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
           elif [ ${{ inputs.build_type }} = "appbundle" ]; then
-            flutter build appbundle --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            flutter build appbundle --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
           fi
 
       - name: Compress debug symbols
