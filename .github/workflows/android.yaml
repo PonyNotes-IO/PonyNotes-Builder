@@ -233,6 +233,32 @@ jobs:
           fi
           echo "✅ 已切换为 release profile"
 
+      # flutter build 的 --target-platform 只约束 Flutter 自身的 libapp.so /
+      # libflutter.so，插件 AAR（mpv、pdfium、pdfrx 等）自带的 x86_64 jni 库
+      # 仍会被 Gradle 打进 APK，于是 lib/x86_64/ 依然存在却没有 libdart_ffi.so
+      # 和 libflutter.so —— 装到 x86_64 设备上必崩。
+      # 只有 abiFilters 能在 Gradle 层面真正排除该 ABI。
+      - name: Restrict ABIs to those actually built
+        run: |
+          BG="${GITHUB_WORKSPACE}/frontend/appflowy_flutter/android/app/build.gradle"
+          python3 - "$BG" <<'PY'
+          import sys
+          p = sys.argv[1]
+          s = open(p, encoding='utf-8').read()
+          if 'abiFilters' in s:
+              print('ℹ️ 已存在 abiFilters，跳过注入')
+              sys.exit(0)
+          anchor = '        multiDexEnabled true\n'
+          if anchor not in s:
+              print('❌ 找不到插入锚点 multiDexEnabled，build.gradle 结构已变更')
+              sys.exit(1)
+          injected = anchor + "        ndk {\n            abiFilters 'arm64-v8a', 'armeabi-v7a'\n        }\n"
+          open(p, 'w', encoding='utf-8').write(s.replace(anchor, injected, 1))
+          print('✅ 已注入 abiFilters')
+          PY
+          echo "defaultConfig 现状："
+          sed -n '/defaultConfig {/,/^    }/p' "$BG"
+
       - uses: actions/setup-java@v4
         with:
           distribution: "temurin" # See 'Supported distributions' for available options
