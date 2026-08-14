@@ -197,6 +197,26 @@ jobs:
           echo "✅ 已剥离，剩余内容："
           cat "$CFG"
 
+      # android/gradle.properties 里的 org.gradle.java.home 指向
+      # /Applications/Android Studio.app/...（某台 macOS 机器上的 JBR），
+      # 上游 AppFlowy 该文件并无此项。Linux runner 上这个路径不存在，
+      # Gradle 直接报 "Java home supplied is invalid"。
+      # 删掉后 Gradle 会用 setup-java 设定的 JAVA_HOME。同样只作用于 CI 副本。
+      - name: Strip machine-specific java.home from gradle.properties
+        run: |
+          GP="${GITHUB_WORKSPACE}/frontend/appflowy_flutter/android/gradle.properties"
+          if [ ! -f "$GP" ]; then
+            echo "ℹ️ 无 $GP，跳过"
+            exit 0
+          fi
+          sed -i '/^org\.gradle\.java\.home=/d' "$GP"
+          if grep -n "org.gradle.java.home" "$GP"; then
+            echo "❌ 仍残留 java.home 设置"
+            exit 1
+          fi
+          echo "✅ 已剥离，剩余内容："
+          cat "$GP"
+
       - uses: actions/setup-java@v4
         with:
           distribution: "temurin" # See 'Supported distributions' for available options
