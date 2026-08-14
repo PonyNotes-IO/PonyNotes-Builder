@@ -470,7 +470,9 @@ jobs:
             --fail-with-body
 
   aarch64:
-    runs-on: macos-latest
+    # 固定 ARM runner，避免 macos-latest 滚动到 macOS 26 / Xcode 26.6 后
+    # Apple clang 21 在链接 Rust build script 时发生 Segmentation fault: 11。
+    runs-on: macos-15
     # 防止任一步骤卡死后跑满 GitHub 上限；超时即快速失败并保留日志。
     timeout-minutes: 120
 
@@ -593,7 +595,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: macos-aarch64
+          # 与旧 macos-latest 缓存隔离，避免跨 macOS/Xcode 大版本复用 rlib。
+          prefix-key: macos-15-aarch64
           workspaces: |
             frontend/rust-lib
 

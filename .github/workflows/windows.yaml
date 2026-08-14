@@ -304,9 +304,27 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          if [ ! -f "PonyNotes/PonyNotes.exe" ]; then
+            echo "::error::Installer payload missing: PonyNotes/PonyNotes.exe"
+            find . -maxdepth 2 -type f -name 'PonyNotes.exe' -print || true
+            exit 1
+          fi
+          if ! grep -Fq 'Source: "PonyNotes\PonyNotes.exe"' inno_setup_config.iss || \
+             ! grep -Fq 'Source: "PonyNotes\*"' inno_setup_config.iss; then
+            echo "::error::Inno Setup [Files] paths do not match the PonyNotes payload directory"
+            grep -n '^Source:' inno_setup_config.iss || true
+            exit 1
+          fi
+
+          FULL_VERSION=$(sed -n 's/^version:[[:space:]]*//p' "$GITHUB_WORKSPACE/frontend/appflowy_flutter/pubspec.yaml" | head -1 | tr -d '\r')
+          VERSION_INFO="${FULL_VERSION/+/.}"
+          if [[ ! "$VERSION_INFO" =~ ^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::Invalid Windows file version derived from pubspec.yaml: ${FULL_VERSION}"
+            exit 1
+          fi
           # MSYS_NO_PATHCONV=1:阻止 Git bash 把 /F、/D 开头的 iscc 参数当 POSIX 路径改写,
           # 否则 iscc 报 "You may not specify more than one script filename"
-          if ! MSYS_NO_PATHCONV=1 iscc "/F${{ env.WINDOWS_INSTALLER_NAME }}" inno_setup_config.iss "/DAppVersion=${{ inputs.build_name }}" 2>&1 | tee /tmp/iscc.log; then
+          if ! MSYS_NO_PATHCONV=1 iscc "/F${{ env.WINDOWS_INSTALLER_NAME }}" inno_setup_config.iss "/DAppVersion=${{ inputs.build_name }}" "/DVersionInfoVersion=${VERSION_INFO}" 2>&1 | tee /tmp/iscc.log; then
             TAIL=$(tail -c 3000 /tmp/iscc.log | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
             echo "::error::ISCC-LOG-TAIL: ${TAIL}"
             exit 1
@@ -384,4 +402,3 @@ jobs:
             --data-binary @"$filepath" \
             "${upload_url}?name=${encoded_filename}" \
             --fail-with-body
-
