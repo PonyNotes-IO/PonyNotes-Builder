@@ -225,6 +225,8 @@ jobs:
         run: |
           MT="${GITHUB_WORKSPACE}/frontend/scripts/makefile/mobile.toml"
           sed -i 's|-o ./jniLibs build --package dart-ffi|-o ./jniLibs build --release --package dart-ffi|' "$MT"
+          # 只发 arm64-v8a，armeabi-v7a 不必再编，省约 10 分钟构建时间
+          sed -i 's|cargo ndk -t arm64-v8a -t armeabi-v7a -o ./jniLibs|cargo ndk -t arm64-v8a -o ./jniLibs|' "$MT"
           echo "sdk-build-android-ci 的构建命令："
           grep -A6 '^\[tasks.sdk-build-android-ci\]' "$MT" | grep "cargo ndk"
           if ! grep -A6 '^\[tasks.sdk-build-android-ci\]' "$MT" | grep -q -- "--release"; then
@@ -233,31 +235,50 @@ jobs:
           fi
           echo "✅ 已切换为 release profile"
 
-      # flutter build 的 --target-platform 只约束 Flutter 自身的 libapp.so /
-      # libflutter.so，插件 AAR（mpv、pdfium、pdfrx 等）自带的 x86_64 jni 库
-      # 仍会被 Gradle 打进 APK，于是 lib/x86_64/ 依然存在却没有 libdart_ffi.so
-      # 和 libflutter.so —— 装到 x86_64 设备上必崩。
-      # 只有 abiFilters 能在 Gradle 层面真正排除该 ABI。
-      - name: Restrict ABIs to those actually built
+      # build.gradle 里作者已写明「Android 端只发 arm64-v8a」，但 splits.abi 配了
+      # universalApk true —— universal APK 恰恰包含全部 ABI，而 flutter build apk
+      # 取的正是它，导致该意图落空：lib/x86_64/ 与 lib/armeabi-v7a/ 照旧被打包，
+      # 其中 x86_64 还缺 libdart_ffi.so 和 libflutter.so，装上去必崩。
+      # defaultConfig.ndk.abiFilters 单独设置也压不住，因为 splits.abi 优先。
+      # 故关闭 splits 并用 abiFilters 限定为 arm64-v8a，落实作者原本的决定。
+      - name: Restrict ABIs to arm64-v8a only
         run: |
           BG="${GITHUB_WORKSPACE}/frontend/appflowy_flutter/android/app/build.gradle"
           python3 - "$BG" <<'PY'
-          import sys
+          import sys, re
           p = sys.argv[1]
           s = open(p, encoding='utf-8').read()
+
+          # 1) 关闭 splits.abi：开启时它优先于 abiFilters，且 universalApk 会打进全部 ABI
+          if re.search(r'splits\s*\{\s*abi\s*\{[^}]*enable\s+true', s):
+              s = re.sub(r'(splits\s*\{\s*abi\s*\{[^}]*?)enable\s+true', r'\1enable false', s, count=1)
+              print('✅ 已关闭 splits.abi')
+          elif 'splits' in s:
+              print('ℹ️ splits.abi 已是关闭状态')
+          else:
+              print('ℹ️ 无 splits 块')
+
+          # 2) 注入 abiFilters，限定单一 ABI
           if 'abiFilters' in s:
               print('ℹ️ 已存在 abiFilters，跳过注入')
-              sys.exit(0)
-          anchor = '        multiDexEnabled true\n'
-          if anchor not in s:
-              print('❌ 找不到插入锚点 multiDexEnabled，build.gradle 结构已变更')
-              sys.exit(1)
-          injected = anchor + "        ndk {\n            abiFilters 'arm64-v8a', 'armeabi-v7a'\n        }\n"
-          open(p, 'w', encoding='utf-8').write(s.replace(anchor, injected, 1))
-          print('✅ 已注入 abiFilters')
+          else:
+              anchor = '        multiDexEnabled true\n'
+              if anchor not in s:
+                  print('❌ 找不到插入锚点 multiDexEnabled，build.gradle 结构已变更')
+                  sys.exit(1)
+              s = s.replace(anchor, anchor + "        ndk {\n            abiFilters 'arm64-v8a'\n        }\n", 1)
+              print('✅ 已注入 abiFilters arm64-v8a')
+
+          open(p, 'w', encoding='utf-8').write(s)
           PY
-          echo "defaultConfig 现状："
+          echo "--- defaultConfig ---"
           sed -n '/defaultConfig {/,/^    }/p' "$BG"
+          echo "--- splits ---"
+          sed -n '/splits {/,/^    }/p' "$BG"
+          if grep -qE 'enable\s+true' <(sed -n '/splits {/,/^    }/p' "$BG"); then
+            echo "❌ splits.abi 仍处于开启状态"
+            exit 1
+          fi
 
       - uses: actions/setup-java@v4
         with:
@@ -365,9 +386,9 @@ jobs:
           # x86_64 版本，不加限制的话 APK 会声明支持 x86_64 却缺少 libdart_ffi.so，
           # 在 x86_64 设备与模拟器上一启动就崩。
           if [ ${{ inputs.build_type }} = "apk" ]; then
-            flutter build apk --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            flutter build apk --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
           elif [ ${{ inputs.build_type }} = "appbundle" ]; then
-            flutter build appbundle --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            flutter build appbundle --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
           fi
 
       - name: Compress debug symbols
