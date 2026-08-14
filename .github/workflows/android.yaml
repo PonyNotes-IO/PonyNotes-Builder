@@ -171,6 +171,32 @@ jobs:
           echo "📋 [patch.crates-io] 区："
           grep -A 35 '\[patch.crates-io\]' "$CARGO_TOML" | head -45
 
+      # frontend/rust-lib/.cargo/config.toml 里的 [target.*-linux-android] 两段
+      # 把 linker 与 --sysroot 硬编码成了某台 Windows 机器的 D:/Android/... 路径
+      # （上游 AppFlowy 该文件并无 android 段，是本地调试配置误入库）。
+      # cargo-ndk 会通过环境变量覆盖 linker，但 rustflags 里的 --sysroot 覆盖不掉，
+      # 于是链接阶段带着一个 Linux 上不存在的 sysroot，必然失败。
+      # 构建实际走 `cargo ndk -t ...`，NDK 的 linker/sysroot 由 cargo-ndk 自行注入，
+      # 因此这里直接把这两段剥掉即可，且只作用于 CI 检出的副本。
+      - name: Strip Windows-only Android linker config from .cargo/config.toml
+        run: |
+          CFG="${GITHUB_WORKSPACE}/frontend/rust-lib/.cargo/config.toml"
+          if [ ! -f "$CFG" ]; then
+            echo "ℹ️ 无 $CFG，跳过"
+            exit 0
+          fi
+          echo "🔧 剥离前含 D:/Android 的行数：$(grep -c 'D:/Android' "$CFG" || true)"
+          # 每遇到一个 [段头] 就重新判定是否跳过；非段头行沿用当前状态。
+          awk '/^\[/ { skip = ($0 ~ /^\[target\.[a-z0-9_]+-linux-android[a-z]*\]/) } !skip' \
+            "$CFG" > "$CFG.new"
+          mv "$CFG.new" "$CFG"
+          if grep -n "D:/Android" "$CFG"; then
+            echo "❌ 仍残留 Windows 路径，剥离规则失效"
+            exit 1
+          fi
+          echo "✅ 已剥离，剩余内容："
+          cat "$CFG"
+
       - uses: actions/setup-java@v4
         with:
           distribution: "temurin" # See 'Supported distributions' for available options
@@ -212,7 +238,11 @@ jobs:
       - name: Install prerequisites
         working-directory: frontend
         run: |
+          # 两个 ABI 都要装：sdk-build-android-all 会依次构建 arm64-v8a 和 x86_64，
+          # 之前只装了 aarch64，x86_64 直接报 "can't find crate for core"。
           rustup target install aarch64-linux-android
+          rustup target install x86_64-linux-android
+          rustup target list --installed | grep android
           cargo install duckscript_cli --force --locked
           cargo install --version 3.3.0 cargo-ndk --locked
           sudo wget -qO /etc/apt/trusted.gpg.d/dart_linux_signing_key.asc https://dl-ssl.google.com/linux/linux_signing_key.pub
