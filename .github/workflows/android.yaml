@@ -269,6 +269,26 @@ jobs:
               s = s.replace(anchor, anchor + "        ndk {\n            abiFilters 'arm64-v8a'\n        }\n", 1)
               print('✅ 已注入 abiFilters arm64-v8a')
 
+          # 3) 打包阶段排除其它 ABI。
+          #    abiFilters 只管住了 Flutter 自身的 libapp.so / libflutter.so，
+          #    插件 AAR（mpv、pdfium、pdfrx、mediakit 等）自带的 .so 不受其约束，
+          #    实测三个 ABI 全部照旧打进 APK。packaging.jniLibs.excludes
+          #    作用于 merge 之后的全部 jni 库，是唯一能兜住 AAR 产物的开关。
+          if 'packaging {' in s:
+              print('ℹ️ 已存在 packaging 块，跳过注入')
+          else:
+              anchor2 = '    defaultConfig {'
+              if anchor2 not in s:
+                  print('❌ 找不到插入锚点 defaultConfig')
+                  sys.exit(1)
+              block = ("    packaging {\n"
+                       "        jniLibs {\n"
+                       "            excludes += ['lib/x86/**', 'lib/x86_64/**', 'lib/armeabi-v7a/**']\n"
+                       "        }\n"
+                       "    }\n\n")
+              s = s.replace(anchor2, block + anchor2, 1)
+              print('✅ 已注入 packaging.jniLibs.excludes')
+
           open(p, 'w', encoding='utf-8').write(s)
           PY
           echo "--- defaultConfig ---"
@@ -381,15 +401,36 @@ jobs:
           ls -lh rust-lib/jniLibs/*/ || true
 
           cd appflowy_flutter
-          # --target-platform 必须与上面 sdk-build-android-ci 实际编译的 ABI 一致。
-          # 该任务只编 arm64-v8a + armeabi-v7a，而 flutter/mpv/pdfium 等插件自带
-          # x86_64 版本，不加限制的话 APK 会声明支持 x86_64 却缺少 libdart_ffi.so，
-          # 在 x86_64 设备与模拟器上一启动就崩。
+          # --target-platform 与 sdk-build-android-ci 实际编译的 ABI 保持一致（仅 arm64）。
+          # 注意：它只约束 Flutter 自身的 libapp.so / libflutter.so，
+          # 插件 AAR 自带的 .so 要靠 packaging.jniLibs.excludes 排除。
           if [ ${{ inputs.build_type }} = "apk" ]; then
             flutter build apk --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
           elif [ ${{ inputs.build_type }} = "appbundle" ]; then
             flutter build appbundle --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
           fi
+
+      # 前几轮里 --target-platform 与 abiFilters 都未能排除插件 AAR 带的 .so，
+      # 产出过「声明支持 x86_64 却缺 libdart_ffi.so」的必崩包。
+      # 此处直接查验产物，不合格就让构建失败，避免坏包被上传或误发布。
+      - name: Verify APK contains only the intended ABI
+        if: inputs.build_type == 'apk'
+        working-directory: frontend/appflowy_flutter
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          echo "APK 内的 ABI 目录："
+          unzip -l "$APK" | grep -oE 'lib/[a-z0-9_-]+/' | sort -u
+          BAD=$(unzip -l "$APK" | grep -oE 'lib/(x86|x86_64|armeabi-v7a|armeabi)/' | sort -u)
+          if [ -n "$BAD" ]; then
+            echo "❌ APK 中仍含未编译 Rust 库的 ABI，装到这些设备上会崩："
+            echo "$BAD"
+            exit 1
+          fi
+          if ! unzip -l "$APK" | grep -q 'lib/arm64-v8a/libdart_ffi.so'; then
+            echo "❌ 缺少 lib/arm64-v8a/libdart_ffi.so"
+            exit 1
+          fi
+          echo "✅ 仅含 arm64-v8a，且 libdart_ffi.so 在位"
 
       - name: Compress debug symbols
         working-directory: frontend/appflowy_flutter
