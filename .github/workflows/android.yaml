@@ -400,6 +400,23 @@ jobs:
           echo "📋 编译出的 Rust 库："
           ls -lh rust-lib/jniLibs/*/ || true
 
+          # libdart_ffi.so 的 DT_NEEDED 里有 libc++_shared.so（build.gradle 用的是
+          # -DANDROID_STL=c++_shared），但 cargo-ndk 不会自动带上它，
+          # post-mobile-android 也只拷 jniLibs 目录 —— 被绕开的那个
+          # copy_android_libs.ps1 正是专门拷过这个文件。
+          # 缺了它 Rust 后端加载失败，Dart 侧 FFI 全部无响应，界面白屏。
+          CXX_SRC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
+          CXX_DST="appflowy_flutter/android/app/src/main/jniLibs/arm64-v8a"
+          if [ ! -f "$CXX_SRC" ]; then
+            echo "❌ 未找到 $CXX_SRC"
+            find "${ANDROID_NDK_HOME}" -name libc++_shared.so -path "*aarch64*" | head
+            exit 1
+          fi
+          mkdir -p "$CXX_DST"
+          cp "$CXX_SRC" "$CXX_DST/"
+          echo "✅ 已补入 libc++_shared.so："
+          ls -lh "$CXX_DST/"
+
           cd appflowy_flutter
           # --target-platform 与 sdk-build-android-ci 实际编译的 ABI 保持一致（仅 arm64）。
           # 注意：它只约束 Flutter 自身的 libapp.so / libflutter.so，
@@ -413,24 +430,49 @@ jobs:
       # 前几轮里 --target-platform 与 abiFilters 都未能排除插件 AAR 带的 .so，
       # 产出过「声明支持 x86_64 却缺 libdart_ffi.so」的必崩包。
       # 此处直接查验产物，不合格就让构建失败，避免坏包被上传或误发布。
-      - name: Verify APK contains only the intended ABI
+      - name: Verify APK native libraries
         if: inputs.build_type == 'apk'
         working-directory: frontend/appflowy_flutter
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           APK=build/app/outputs/flutter-apk/app-release.apk
           echo "APK 内的 ABI 目录："
           unzip -l "$APK" | grep -oE 'lib/[a-z0-9_-]+/' | sort -u
+
           BAD=$(unzip -l "$APK" | grep -oE 'lib/(x86|x86_64|armeabi-v7a|armeabi)/' | sort -u)
           if [ -n "$BAD" ]; then
             echo "❌ APK 中仍含未编译 Rust 库的 ABI，装到这些设备上会崩："
             echo "$BAD"
             exit 1
           fi
-          if ! unzip -l "$APK" | grep -q 'lib/arm64-v8a/libdart_ffi.so'; then
-            echo "❌ 缺少 lib/arm64-v8a/libdart_ffi.so"
-            exit 1
-          fi
-          echo "✅ 仅含 arm64-v8a，且 libdart_ffi.so 在位"
+
+          # 逐个 .so 核对 DT_NEEDED：1.2.0 首版就是因为漏了 libc++_shared.so
+          # 而白屏，只检查 ABI 是不够的。
+          rm -rf /tmp/apkverify && mkdir -p /tmp/apkverify
+          unzip -o -q "$APK" 'lib/arm64-v8a/*' -d /tmp/apkverify
+          READELF="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          SYS=" libc.so libm.so libdl.so liblog.so libandroid.so libz.so libGLESv2.so libGLESv3.so libEGL.so libOpenSLES.so libvulkan.so libjnigraphics.so libmediandk.so libnativewindow.so libaaudio.so libcamera2ndk.so libstdc++.so libneuralnetworks.so libsync.so libamidi.so libnativehelper.so "
+          PRESENT=" $(ls /tmp/apkverify/lib/arm64-v8a/ | tr '\n' ' ') "
+          echo "APK 内 .so：$PRESENT"
+          FAIL=0
+          for so in /tmp/apkverify/lib/arm64-v8a/*.so; do
+            for need in $("$READELF" -d "$so" 2>/dev/null | grep NEEDED | sed 's/.*\[\(.*\)\]/\1/'); do
+              case "$SYS$PRESENT" in
+                *" $need "*) ;;
+                *) echo "❌ $(basename $so) 依赖 $need，但 APK 内没有"; FAIL=1 ;;
+              esac
+            done
+          done
+          [ "$FAIL" = "1" ] && exit 1
+
+          for must in libdart_ffi.so libc++_shared.so libapp.so libflutter.so; do
+            if ! unzip -l "$APK" | grep -q "lib/arm64-v8a/$must"; then
+              echo "❌ 缺少 lib/arm64-v8a/$must"
+              exit 1
+            fi
+          done
+          echo "✅ 仅含 arm64-v8a，全部 .so 的动态依赖均已满足"
 
       - name: Compress debug symbols
         working-directory: frontend/appflowy_flutter
