@@ -6,19 +6,27 @@ on:
       repo:
         description: "Repo"
         required: true
-        default: "PonyNotes-IO/PonyNotes"
+        default: "PonyNotes-IO/PonyNotes-New"
       branch:
         description: "Branch"
         required: true
-        default: "main"
+        default: "dev_mobile_new"
       build_name:
         description: "Build Version (it should match the version in pubspec.yaml)"
         required: true
-        default: "0.9.4"
+        default: "1.2.5"
       build_number:
         description: "Build Number (it should be unique)"
         required: true
-        default: "2909401"
+        default: "51"
+      arch:
+        type: choice
+        description: "Architecture (arm64=仅64位, universal=arm64+armeabi-v7a 兼容包)"
+        required: true
+        default: "arm64"
+        options:
+          - "arm64"
+          - "universal"
       build_type:
         type: choice
         description: "Build Type"
@@ -50,6 +58,10 @@ on:
         type: string
       build_number:
         description: "Build Number"
+        required: true
+        type: string
+      arch:
+        description: "Architecture (arm64 or universal)"
         required: true
         type: string
       build_type:
@@ -225,8 +237,13 @@ jobs:
         run: |
           MT="${GITHUB_WORKSPACE}/frontend/scripts/makefile/mobile.toml"
           sed -i 's|-o ./jniLibs build --package dart-ffi|-o ./jniLibs build --release --package dart-ffi|' "$MT"
-          # 只发 arm64-v8a，armeabi-v7a 不必再编，省约 10 分钟构建时间
-          sed -i 's|cargo ndk -t arm64-v8a -t armeabi-v7a -o ./jniLibs|cargo ndk -t arm64-v8a -o ./jniLibs|' "$MT"
+          if [ "${{ inputs.arch }}" = "universal" ]; then
+            # universal: 保留 arm64-v8a + armeabi-v7a 双架构
+            echo "保留双架构: arm64-v8a + armeabi-v7a"
+          else
+            # 只发 arm64-v8a，armeabi-v7a 不必再编，省约 10 分钟构建时间
+            sed -i 's|cargo ndk -t arm64-v8a -t armeabi-v7a -o ./jniLibs|cargo ndk -t arm64-v8a -o ./jniLibs|' "$MT"
+          fi
           echo "sdk-build-android-ci 的构建命令："
           grep -A6 '^\[tasks.sdk-build-android-ci\]' "$MT" | grep "cargo ndk"
           if ! grep -A6 '^\[tasks.sdk-build-android-ci\]' "$MT" | grep -q -- "--release"; then
@@ -241,12 +258,13 @@ jobs:
       # 其中 x86_64 还缺 libdart_ffi.so 和 libflutter.so，装上去必崩。
       # defaultConfig.ndk.abiFilters 单独设置也压不住，因为 splits.abi 优先。
       # 故关闭 splits 并用 abiFilters 限定为 arm64-v8a，落实作者原本的决定。
-      - name: Restrict ABIs to arm64-v8a only
+      - name: Restrict ABIs based on arch parameter
         run: |
           BG="${GITHUB_WORKSPACE}/frontend/appflowy_flutter/android/app/build.gradle"
-          python3 - "$BG" <<'PY'
+          ARCH="${{ inputs.arch }}"
+          python3 - "$BG" "$ARCH" <<'PY'
           import sys, re
-          p = sys.argv[1]
+          p, arch = sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else 'arm64'
           s = open(p, encoding='utf-8').read()
 
           # 1) 关闭 splits.abi：开启时它优先于 abiFilters，且 universalApk 会打进全部 ABI
@@ -258,7 +276,8 @@ jobs:
           else:
               print('ℹ️ 无 splits 块')
 
-          # 2) 注入 abiFilters，限定单一 ABI
+          # 2) 注入 abiFilters
+          abis = "'arm64-v8a', 'armeabi-v7a'" if arch == 'universal' else "'arm64-v8a'"
           if 'abiFilters' in s:
               print('ℹ️ 已存在 abiFilters，跳过注入')
           else:
@@ -266,14 +285,14 @@ jobs:
               if anchor not in s:
                   print('❌ 找不到插入锚点 multiDexEnabled，build.gradle 结构已变更')
                   sys.exit(1)
-              s = s.replace(anchor, anchor + "        ndk {\n            abiFilters 'arm64-v8a'\n        }\n", 1)
-              print('✅ 已注入 abiFilters arm64-v8a')
+              s = s.replace(anchor, anchor + "        ndk {\n            abiFilters " + abis + "\n        }\n", 1)
+              print(f'✅ 已注入 abiFilters {abis}')
 
-          # 3) 打包阶段排除其它 ABI。
-          #    abiFilters 只管住了 Flutter 自身的 libapp.so / libflutter.so，
-          #    插件 AAR（mpv、pdfium、pdfrx、mediakit 等）自带的 .so 不受其约束，
-          #    实测三个 ABI 全部照旧打进 APK。packaging.jniLibs.excludes
-          #    作用于 merge 之后的全部 jni 库，是唯一能兜住 AAR 产物的开关。
+          # 3) 打包阶段排除无 Rust 库的 ABI
+          if arch == 'universal':
+              excludes = "['lib/x86/**', 'lib/x86_64/**']"
+          else:
+              excludes = "['lib/x86/**', 'lib/x86_64/**', 'lib/armeabi-v7a/**']"
           if 'packaging {' in s:
               print('ℹ️ 已存在 packaging 块，跳过注入')
           else:
@@ -283,11 +302,11 @@ jobs:
                   sys.exit(1)
               block = ("    packaging {\n"
                        "        jniLibs {\n"
-                       "            excludes += ['lib/x86/**', 'lib/x86_64/**', 'lib/armeabi-v7a/**']\n"
+                       f"            excludes += {excludes}\n"
                        "        }\n"
                        "    }\n\n")
               s = s.replace(anchor2, block + anchor2, 1)
-              print('✅ 已注入 packaging.jniLibs.excludes')
+              print(f'✅ 已注入 packaging.jniLibs.excludes: {excludes}')
 
           open(p, 'w', encoding='utf-8').write(s)
           PY
@@ -414,17 +433,35 @@ jobs:
           fi
           mkdir -p "$CXX_DST"
           cp "$CXX_SRC" "$CXX_DST/"
-          echo "✅ 已补入 libc++_shared.so："
-          ls -lh "$CXX_DST/"
+          echo "✅ 已补入 arm64-v8a libc++_shared.so"
+
+          if [ "${{ inputs.arch }}" = "universal" ]; then
+            CXX_SRC_V7A="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so"
+            CXX_DST_V7A="appflowy_flutter/android/app/src/main/jniLibs/armeabi-v7a"
+            if [ ! -f "$CXX_SRC_V7A" ]; then
+              echo "❌ 未找到 $CXX_SRC_V7A"
+              find "${ANDROID_NDK_HOME}" -name libc++_shared.so -path "*arm-linux*" | head
+              exit 1
+            fi
+            mkdir -p "$CXX_DST_V7A"
+            cp "$CXX_SRC_V7A" "$CXX_DST_V7A/"
+            echo "✅ 已补入 armeabi-v7a libc++_shared.so"
+          fi
+          ls -lh appflowy_flutter/android/app/src/main/jniLibs/*/
 
           cd appflowy_flutter
-          # --target-platform 与 sdk-build-android-ci 实际编译的 ABI 保持一致（仅 arm64）。
-          # 注意：它只约束 Flutter 自身的 libapp.so / libflutter.so，
-          # 插件 AAR 自带的 .so 要靠 packaging.jniLibs.excludes 排除。
           if [ ${{ inputs.build_type }} = "apk" ]; then
-            flutter build apk --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            if [ "${{ inputs.arch }}" = "universal" ]; then
+              flutter build apk --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            else
+              flutter build apk --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            fi
           elif [ ${{ inputs.build_type }} = "appbundle" ]; then
-            flutter build appbundle --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            if [ "${{ inputs.arch }}" = "universal" ]; then
+              flutter build appbundle --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            else
+              flutter build appbundle --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+            fi
           fi
 
       # 前几轮里 --target-platform 与 abiFilters 都未能排除插件 AAR 带的 .so，
@@ -440,39 +477,53 @@ jobs:
           echo "APK 内的 ABI 目录："
           unzip -l "$APK" | grep -oE 'lib/[a-z0-9_-]+/' | sort -u
 
-          BAD=$(unzip -l "$APK" | grep -oE 'lib/(x86|x86_64|armeabi-v7a|armeabi)/' | sort -u)
+          if [ "${{ inputs.arch }}" = "universal" ]; then
+            # universal 允许 arm64-v8a + armeabi-v7a
+            BAD=$(unzip -l "$APK" | grep -oE 'lib/(x86|x86_64|armeabi)/' | sort -u)
+          else
+            BAD=$(unzip -l "$APK" | grep -oE 'lib/(x86|x86_64|armeabi-v7a|armeabi)/' | sort -u)
+          fi
           if [ -n "$BAD" ]; then
-            echo "❌ APK 中仍含未编译 Rust 库的 ABI，装到这些设备上会崩："
+            echo "❌ APK 中含未编译 Rust 库的 ABI，装到这些设备上会崩："
             echo "$BAD"
             exit 1
           fi
 
-          # 逐个 .so 核对 DT_NEEDED：1.2.0 首版就是因为漏了 libc++_shared.so
-          # 而白屏，只检查 ABI 是不够的。
-          rm -rf /tmp/apkverify && mkdir -p /tmp/apkverify
-          unzip -o -q "$APK" 'lib/arm64-v8a/*' -d /tmp/apkverify
+          # 逐个 .so 核对 DT_NEEDED
           READELF="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
           SYS=" libc.so libm.so libdl.so liblog.so libandroid.so libz.so libGLESv2.so libGLESv3.so libEGL.so libOpenSLES.so libvulkan.so libjnigraphics.so libmediandk.so libnativewindow.so libaaudio.so libcamera2ndk.so libstdc++.so libneuralnetworks.so libsync.so libamidi.so libnativehelper.so "
-          PRESENT=" $(ls /tmp/apkverify/lib/arm64-v8a/ | tr '\n' ' ') "
-          echo "APK 内 .so：$PRESENT"
-          FAIL=0
-          for so in /tmp/apkverify/lib/arm64-v8a/*.so; do
-            for need in $("$READELF" -d "$so" 2>/dev/null | grep NEEDED | sed 's/.*\[\(.*\)\]/\1/'); do
-              case "$SYS$PRESENT" in
-                *" $need "*) ;;
-                *) echo "❌ $(basename $so) 依赖 $need，但 APK 内没有"; FAIL=1 ;;
-              esac
-            done
-          done
-          [ "$FAIL" = "1" ] && exit 1
 
-          for must in libdart_ffi.so libc++_shared.so libapp.so libflutter.so; do
-            if ! unzip -l "$APK" | grep -q "lib/arm64-v8a/$must"; then
-              echo "❌ 缺少 lib/arm64-v8a/$must"
-              exit 1
-            fi
-          done
-          echo "✅ 仅含 arm64-v8a，全部 .so 的动态依赖均已满足"
+          verify_abi() {
+            local abi="$1"
+            rm -rf /tmp/apkverify && mkdir -p /tmp/apkverify
+            unzip -o -q "$APK" "lib/${abi}/*" -d /tmp/apkverify 2>/dev/null || return 0
+            PRESENT=" $(ls /tmp/apkverify/lib/${abi}/ | tr '\n' ' ') "
+            echo "APK 内 ${abi} .so：$PRESENT"
+            local fail=0
+            for so in /tmp/apkverify/lib/${abi}/*.so; do
+              for need in $("$READELF" -d "$so" 2>/dev/null | grep NEEDED | sed 's/.*\[\(.*\)\]/\1/'); do
+                case "$SYS$PRESENT" in
+                  *" $need "*) ;;
+                  *) echo "❌ $(basename $so) 依赖 $need，但 APK 内没有"; fail=1 ;;
+                esac
+              done
+            done
+            for must in libdart_ffi.so libc++_shared.so libapp.so libflutter.so; do
+              if ! unzip -l "$APK" | grep -q "lib/${abi}/$must"; then
+                echo "❌ 缺少 lib/${abi}/$must"
+                fail=1
+              fi
+            done
+            return $fail
+          }
+
+          FAIL=0
+          verify_abi arm64-v8a || FAIL=1
+          if [ "${{ inputs.arch }}" = "universal" ]; then
+            verify_abi armeabi-v7a || FAIL=1
+          fi
+          [ "$FAIL" = "1" ] && exit 1
+          echo "✅ APK 原生库验证通过"
 
       - name: Compress debug symbols
         working-directory: frontend/appflowy_flutter
