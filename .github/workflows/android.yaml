@@ -19,14 +19,6 @@ on:
         description: "Build Number (it should be unique)"
         required: true
         default: "51"
-      arch:
-        type: choice
-        description: "Architecture (arm64=仅64位, universal=arm64+armeabi-v7a 兼容包)"
-        required: true
-        default: "arm64"
-        options:
-          - "arm64"
-          - "universal"
       build_type:
         type: choice
         description: "Build Type"
@@ -60,10 +52,6 @@ on:
         description: "Build Number"
         required: true
         type: string
-      arch:
-        description: "Architecture (arm64 or universal)"
-        required: true
-        type: string
       build_type:
         description: "Build Type"
         required: true
@@ -82,25 +70,20 @@ env:
   RUST_TOOLCHAIN: "1.91.0"
 
 jobs:
-  build:
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ubuntu-latest]
-        include:
-          - os: ubuntu-latest
-            target: aarch64-linux-android
-    runs-on: ${{ matrix.os }}
+  # ============================================================
+  # arm64 job: 仅 arm64-v8a
+  # ============================================================
+  arm64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    env:
+      ANDROID_APK_NAME: PonyNotes-${{ inputs.build_name }}-android-arm64
 
     steps:
-      # the following step is required to avoid running out of space
       - name: Maximize build space
-        if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost" "$AGENT_TOOLSDIRECTORY"
 
       - name: Checkout source code
         uses: actions/checkout@v2
@@ -109,14 +92,8 @@ jobs:
           ref: ${{ inputs.branch }}
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
 
-      # 以下依赖准备步骤与 macos.yaml / windows.yaml 保持一致：
-      # frontend/rust-lib/Cargo.toml 用相对路径 ../../../ 引用这些同级仓库，
-      # 缺任何一个都会在 cargo metadata 阶段直接失败。
-      # 注意：本 job 跑在 ubuntu 上，sed 必须用 GNU 语法（sed -i），
-      # 不能照抄 macos.yaml 里的 BSD 语法（sed -i ''）。
       - name: Download PonyNotes-Cloud-New (for client-api dependency)
         run: |
-          echo "📦 Downloading PonyNotes-Cloud-New via tarball..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../PonyNotes-Cloud-New"
           curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
           tar -xzf /tmp/cloud.tar.gz -C /tmp 2>/dev/null || true
@@ -124,217 +101,103 @@ jobs:
           rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
           mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
           rm /tmp/cloud.tar.gz
-          echo "✅ Downloaded to: $TARGET_DIR"
-          ls -la "$TARGET_DIR/Cargo.toml"
-          ls -la "$TARGET_DIR/libs/client-api/src/"
 
       - name: Download AppFlowy-Collab (for collab dependencies)
         run: |
-          echo "📦 Downloading AppFlowy-Collab (dev branch) via tarball..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../AppFlowy-Collab"
           curl -sL https://github.com/PonyNotes-IO/AppFlowy-Collab/archive/refs/heads/dev.tar.gz -o /tmp/collab.tar.gz
           mkdir -p "$TARGET_DIR"
           tar -xzf /tmp/collab.tar.gz -C /tmp 2>/dev/null || true
           mv /tmp/AppFlowy-Collab-dev/* "$TARGET_DIR/"
-          rm -rf /tmp/AppFlowy-Collab-dev
-          rm /tmp/collab.tar.gz
-          echo "✅ AppFlowy-Collab downloaded to: $TARGET_DIR"
+          rm -rf /tmp/AppFlowy-Collab-dev /tmp/collab.tar.gz
 
       - name: Download rust-rocksdb (for rocksdb dependency)
         run: |
-          echo "📦 Cloning rust-rocksdb with submodules (required for rocksdb source)..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../rust-rocksdb"
           git clone https://github.com/rust-rocksdb/rust-rocksdb.git "$TARGET_DIR"
           cd "$TARGET_DIR"
           git checkout 1710120e4549e04ba3baa6a1ee5a5a801fa45a72
           git submodule update --init --recursive --depth 1
-          echo "✅ rust-rocksdb cloned to: $TARGET_DIR"
 
       - name: Download langchain-rust (for langchain-rust dependency)
         run: |
-          echo "📦 Downloading langchain-rust (af branch) via tarball..."
           TARGET_DIR="${GITHUB_WORKSPACE}/../langchain-rust"
           curl -sL https://github.com/appflowy/langchain-rust/archive/refs/heads/af.tar.gz -o /tmp/langchain.tar.gz
           mkdir -p "$TARGET_DIR"
           tar -xzf /tmp/langchain.tar.gz -C /tmp 2>/dev/null || true
           mv /tmp/langchain-rust-af/* "$TARGET_DIR/"
-          rm -rf /tmp/langchain-rust-af
-          rm /tmp/langchain.tar.gz
-          echo "✅ langchain-rust downloaded to: $TARGET_DIR"
+          rm -rf /tmp/langchain-rust-af /tmp/langchain.tar.gz
 
       - name: Patch Cargo.toml to use local paths for git dependencies
         run: |
-          echo "🔧 Patching Cargo.toml to use local paths instead of git URLs..."
           CARGO_TOML="${GITHUB_WORKSPACE}/frontend/rust-lib/Cargo.toml"
           cp "$CARGO_TOML" "$CARGO_TOML.bak"
-
           for c in collab collab-entity collab-folder collab-document collab-database collab-plugins collab-user; do
             sed -i "s|^${c} = { version = \"0.2\", git = \"https://github.com/PonyNotes-IO/AppFlowy-Collab\", branch = \"dev\" }|${c} = { path = \"../../../AppFlowy-Collab/${c}\" }|g" "$CARGO_TOML"
           done
           sed -i 's|^collab-importer = { version = "0.1", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-importer = { path = "../../../AppFlowy-Collab/collab-importer" }|g' "$CARGO_TOML"
           sed -i 's|^rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1710120e4549e04ba3baa6a1ee5a5a801fa45a72" }|rocksdb = { path = "../../../rust-rocksdb" }|g' "$CARGO_TOML"
           sed -i 's|^langchain-rust = { version = "4.6.0", git = "https://github.com/appflowy/langchain-rust", branch = "af" }|langchain-rust = { path = "../../../langchain-rust" }|g' "$CARGO_TOML"
-
-          echo "✅ Cargo.toml patched，校验是否仍有残留 git 依赖："
           if grep -nE '^(collab[a-z-]*|rocksdb|langchain-rust) = .*git = ' "$CARGO_TOML"; then
-            echo "❌ 上述依赖未被替换成本地路径，patch 规则与 Cargo.toml 已不匹配，提前失败以免浪费构建时间。"
-            exit 1
+            echo "❌ 残留 git 依赖"; exit 1
           fi
-          echo "📋 [patch.crates-io] 区："
-          grep -A 35 '\[patch.crates-io\]' "$CARGO_TOML" | head -45
 
-      # frontend/rust-lib/.cargo/config.toml 里的 [target.*-linux-android] 两段
-      # 把 linker 与 --sysroot 硬编码成了某台 Windows 机器的 D:/Android/... 路径
-      # （上游 AppFlowy 该文件并无 android 段，是本地调试配置误入库）。
-      # cargo-ndk 会通过环境变量覆盖 linker，但 rustflags 里的 --sysroot 覆盖不掉，
-      # 于是链接阶段带着一个 Linux 上不存在的 sysroot，必然失败。
-      # 构建实际走 `cargo ndk -t ...`，NDK 的 linker/sysroot 由 cargo-ndk 自行注入，
-      # 因此这里直接把这两段剥掉即可，且只作用于 CI 检出的副本。
-      - name: Strip Windows-only Android linker config from .cargo/config.toml
+      - name: Strip Windows-only Android linker config
         run: |
           CFG="${GITHUB_WORKSPACE}/frontend/rust-lib/.cargo/config.toml"
-          if [ ! -f "$CFG" ]; then
-            echo "ℹ️ 无 $CFG，跳过"
-            exit 0
-          fi
-          echo "🔧 剥离前含 D:/Android 的行数：$(grep -c 'D:/Android' "$CFG" || true)"
-          # 每遇到一个 [段头] 就重新判定是否跳过；非段头行沿用当前状态。
-          awk '/^\[/ { skip = ($0 ~ /^\[target\.[a-z0-9_]+-linux-android[a-z]*\]/) } !skip' \
-            "$CFG" > "$CFG.new"
+          [ ! -f "$CFG" ] && exit 0
+          awk '/^\[/ { skip = ($0 ~ /^\[target\.[a-z0-9_]+-linux-android[a-z]*\]/) } !skip' "$CFG" > "$CFG.new"
           mv "$CFG.new" "$CFG"
-          if grep -n "D:/Android" "$CFG"; then
-            echo "❌ 仍残留 Windows 路径，剥离规则失效"
-            exit 1
-          fi
-          echo "✅ 已剥离，剩余内容："
-          cat "$CFG"
 
-      # android/gradle.properties 里的 org.gradle.java.home 指向
-      # /Applications/Android Studio.app/...（某台 macOS 机器上的 JBR），
-      # 上游 AppFlowy 该文件并无此项。Linux runner 上这个路径不存在，
-      # Gradle 直接报 "Java home supplied is invalid"。
-      # 删掉后 Gradle 会用 setup-java 设定的 JAVA_HOME。同样只作用于 CI 副本。
-      - name: Strip machine-specific java.home from gradle.properties
+      - name: Strip machine-specific java.home
         run: |
           GP="${GITHUB_WORKSPACE}/frontend/appflowy_flutter/android/gradle.properties"
-          if [ ! -f "$GP" ]; then
-            echo "ℹ️ 无 $GP，跳过"
-            exit 0
-          fi
+          [ ! -f "$GP" ] && exit 0
           sed -i '/^org\.gradle\.java\.home=/d' "$GP"
-          if grep -n "org.gradle.java.home" "$GP"; then
-            echo "❌ 仍残留 java.home 设置"
-            exit 1
-          fi
-          echo "✅ 已剥离，剩余内容："
-          cat "$GP"
 
-      # sdk-build-android-ci 的 cargo ndk 没带 --release，打出来的是 debug 产物：
-      # libdart_ffi.so 单是 arm64 就 120 MB，整包 171 MB（安装后 419 MB）。
-      # production-android profile 里 BUILD_FLAG 本就是 release，此处补齐即可。
-      # cargo-ndk 对 release 产物默认会 strip。
-      - name: Build Rust in release profile
+      - name: Build Rust in release profile (arm64 only)
         run: |
           MT="${GITHUB_WORKSPACE}/frontend/scripts/makefile/mobile.toml"
           sed -i 's|-o ./jniLibs build --package dart-ffi|-o ./jniLibs build --release --package dart-ffi|' "$MT"
-          if [ "${{ inputs.arch }}" = "universal" ]; then
-            # universal: 保留 arm64-v8a + armeabi-v7a 双架构
-            echo "保留双架构: arm64-v8a + armeabi-v7a"
-          else
-            # 只发 arm64-v8a，armeabi-v7a 不必再编，省约 10 分钟构建时间
-            sed -i 's|cargo ndk -t arm64-v8a -t armeabi-v7a -o ./jniLibs|cargo ndk -t arm64-v8a -o ./jniLibs|' "$MT"
-          fi
-          echo "sdk-build-android-ci 的构建命令："
-          grep -A6 '^\[tasks.sdk-build-android-ci\]' "$MT" | grep "cargo ndk"
-          if ! grep -A6 '^\[tasks.sdk-build-android-ci\]' "$MT" | grep -q -- "--release"; then
-            echo "❌ --release 未注入成功，构建命令可能已变更"
-            exit 1
-          fi
-          echo "✅ 已切换为 release profile"
+          sed -i 's|cargo ndk -t arm64-v8a -t armeabi-v7a -o ./jniLibs|cargo ndk -t arm64-v8a -o ./jniLibs|' "$MT"
 
-      # build.gradle 里作者已写明「Android 端只发 arm64-v8a」，但 splits.abi 配了
-      # universalApk true —— universal APK 恰恰包含全部 ABI，而 flutter build apk
-      # 取的正是它，导致该意图落空：lib/x86_64/ 与 lib/armeabi-v7a/ 照旧被打包，
-      # 其中 x86_64 还缺 libdart_ffi.so 和 libflutter.so，装上去必崩。
-      # defaultConfig.ndk.abiFilters 单独设置也压不住，因为 splits.abi 优先。
-      # 故关闭 splits 并用 abiFilters 限定为 arm64-v8a，落实作者原本的决定。
-      - name: Restrict ABIs based on arch parameter
+      - name: Restrict ABIs to arm64-v8a
         run: |
           BG="${GITHUB_WORKSPACE}/frontend/appflowy_flutter/android/app/build.gradle"
-          ARCH="${{ inputs.arch }}"
-          python3 - "$BG" "$ARCH" <<'PY'
+          python3 - "$BG" "arm64" <<'PY'
           import sys, re
-          p, arch = sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else 'arm64'
+          p, arch = sys.argv[1], sys.argv[2]
           s = open(p, encoding='utf-8').read()
-
-          # 1) 关闭 splits.abi：开启时它优先于 abiFilters，且 universalApk 会打进全部 ABI
           if re.search(r'splits\s*\{\s*abi\s*\{[^}]*enable\s+true', s):
               s = re.sub(r'(splits\s*\{\s*abi\s*\{[^}]*?)enable\s+true', r'\1enable false', s, count=1)
-              print('✅ 已关闭 splits.abi')
-          elif 'splits' in s:
-              print('ℹ️ splits.abi 已是关闭状态')
-          else:
-              print('ℹ️ 无 splits 块')
-
-          # 2) 注入 abiFilters
-          abis = "'arm64-v8a', 'armeabi-v7a'" if arch == 'universal' else "'arm64-v8a'"
-          if 'abiFilters' in s:
-              print('ℹ️ 已存在 abiFilters，跳过注入')
-          else:
+          if 'abiFilters' not in s:
               anchor = '        multiDexEnabled true\n'
-              if anchor not in s:
-                  print('❌ 找不到插入锚点 multiDexEnabled，build.gradle 结构已变更')
-                  sys.exit(1)
-              s = s.replace(anchor, anchor + "        ndk {\n            abiFilters " + abis + "\n        }\n", 1)
-              print(f'✅ 已注入 abiFilters {abis}')
-
-          # 3) 打包阶段排除无 Rust 库的 ABI
-          if arch == 'universal':
-              excludes = "['lib/x86/**', 'lib/x86_64/**']"
-          else:
-              excludes = "['lib/x86/**', 'lib/x86_64/**', 'lib/armeabi-v7a/**']"
-          if 'packaging {' in s:
-              print('ℹ️ 已存在 packaging 块，跳过注入')
-          else:
+              s = s.replace(anchor, anchor + "        ndk {\n            abiFilters 'arm64-v8a'\n        }\n", 1)
+          if 'packaging {' not in s:
               anchor2 = '    defaultConfig {'
-              if anchor2 not in s:
-                  print('❌ 找不到插入锚点 defaultConfig')
-                  sys.exit(1)
               block = ("    packaging {\n"
                        "        jniLibs {\n"
-                       f"            excludes += {excludes}\n"
+                       "            excludes += ['lib/x86/**', 'lib/x86_64/**', 'lib/armeabi-v7a/**']\n"
                        "        }\n"
                        "    }\n\n")
               s = s.replace(anchor2, block + anchor2, 1)
-              print(f'✅ 已注入 packaging.jniLibs.excludes: {excludes}')
-
           open(p, 'w', encoding='utf-8').write(s)
           PY
-          echo "--- defaultConfig ---"
-          sed -n '/defaultConfig {/,/^    }/p' "$BG"
-          echo "--- splits ---"
-          sed -n '/splits {/,/^    }/p' "$BG"
-          if grep -qE 'enable\s+true' <(sed -n '/splits {/,/^    }/p' "$BG"); then
-            echo "❌ splits.abi 仍处于开启状态"
-            exit 1
-          fi
 
       - uses: actions/setup-java@v4
         with:
-          distribution: "temurin" # See 'Supported distributions' for available options
+          distribution: "temurin"
           java-version: "17"
 
       - name: Install Rust toolchain
-        id: rust_toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
-          target: ${{ matrix.target }}
+          target: aarch64-linux-android
           override: true
           profile: minimal
 
       - name: Install flutter
-        id: flutter
         uses: subosito/flutter-action@v2
         with:
           channel: "stable"
@@ -349,7 +212,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: ${{ matrix.os }}
+          prefix-key: android-arm64
           workspaces: |
             frontend/rust-lib
 
@@ -360,21 +223,13 @@ jobs:
       - name: Install prerequisites
         working-directory: frontend
         run: |
-          # sdk-build-android-ci 构建 arm64-v8a + armeabi-v7a；
-          # x86_64 一并装上，以免任务链改动时再次踩 "can't find crate for core"。
-          rustup target install aarch64-linux-android
-          rustup target install armv7-linux-androideabi
-          rustup target install x86_64-linux-android
-          rustup target list --installed | grep android
+          rustup target install aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
           cargo install duckscript_cli --force --locked
           cargo install --version 3.3.0 cargo-ndk --locked
           sudo wget -qO /etc/apt/trusted.gpg.d/dart_linux_signing_key.asc https://dl-ssl.google.com/linux/linux_signing_key.pub
           sudo wget -qO /etc/apt/sources.list.d/dart_stable.list https://storage.googleapis.com/download.dartlang.org/linux/debian/dart_stable.list
           sudo apt-get update
-          sudo apt-get install -y dart curl build-essential libssl-dev clang cmake ninja-build pkg-config libgtk-3-dev
-          sudo apt-get install keybinder-3.0 libnotify-dev
-          sudo apt-get install gcc-multilib
-          sudo apt-get -y install libmpv-dev mpv
+          sudo apt-get install -y dart curl build-essential libssl-dev clang cmake ninja-build pkg-config libgtk-3-dev keybinder-3.0 libnotify-dev gcc-multilib libmpv-dev mpv
           cargo make appflowy-flutter-deps-tools
         shell: bash
 
@@ -383,238 +238,343 @@ jobs:
         run: |
           echo "INTERNAL_BUILD=${{ inputs.internal_build }}" >> .env
           echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
-        shell: bash
 
       - name: Configure release sign
         working-directory: frontend/appflowy_flutter/android/app
-        run: |
-          # replace signingConfig signingConfigs.debug with signingConfig signingConfigs.release
-          sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' build.gradle
+        run: sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' build.gradle
 
       - name: Configure key.properties
         working-directory: frontend/appflowy_flutter/android
         run: |
           echo "${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}" | base64 --decode > app/upload-keystore.jks
           echo -e "storePassword=${{ secrets.ANDROID_UPLOAD_KEYSTORE_STORE_PASSWORD }}\nkeyPassword=${{ secrets.ANDROID_UPLOAD_KEYSTORE_KEY_PASSWORD }}\nkeyAlias=upload\nstoreFile=upload-keystore.jks" > key.properties
-        shell: bash
 
       - name: Configure Git credentials for Cargo
         run: |
           git config --global credential.helper store
           echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
 
-      - name: Build PonyNotes
+      - name: Build PonyNotes (arm64)
         working-directory: frontend
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          # 用 -ci 任务链，不要用 appflowy-core-dev-android：
-          # 后者的 post-mobile-android-multiarch 调 powershell 跑 copy_android_libs.ps1，
-          # 该脚本是 Windows 专用（NDK 路径硬编码 D:\Android\...），Linux 上必然失败。
-          # -ci 链走跨平台的 post-mobile-android（duckscript 拷贝），
-          # 是仓库本来就为 CI 准备好的路径。
           cargo make --profile production-android appflowy-core-dev-android-ci
           cargo make --profile production-android code_generation
-
-          echo "📋 编译出的 Rust 库："
           ls -lh rust-lib/jniLibs/*/ || true
-
-          # libdart_ffi.so 的 DT_NEEDED 里有 libc++_shared.so（build.gradle 用的是
-          # -DANDROID_STL=c++_shared），但 cargo-ndk 不会自动带上它，
-          # post-mobile-android 也只拷 jniLibs 目录 —— 被绕开的那个
-          # copy_android_libs.ps1 正是专门拷过这个文件。
-          # 缺了它 Rust 后端加载失败，Dart 侧 FFI 全部无响应，界面白屏。
           CXX_SRC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
           CXX_DST="appflowy_flutter/android/app/src/main/jniLibs/arm64-v8a"
-          if [ ! -f "$CXX_SRC" ]; then
-            echo "❌ 未找到 $CXX_SRC"
-            find "${ANDROID_NDK_HOME}" -name libc++_shared.so -path "*aarch64*" | head
-            exit 1
-          fi
-          mkdir -p "$CXX_DST"
-          cp "$CXX_SRC" "$CXX_DST/"
-          echo "✅ 已补入 arm64-v8a libc++_shared.so"
-
-          if [ "${{ inputs.arch }}" = "universal" ]; then
-            CXX_SRC_V7A="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so"
-            CXX_DST_V7A="appflowy_flutter/android/app/src/main/jniLibs/armeabi-v7a"
-            if [ ! -f "$CXX_SRC_V7A" ]; then
-              echo "❌ 未找到 $CXX_SRC_V7A"
-              find "${ANDROID_NDK_HOME}" -name libc++_shared.so -path "*arm-linux*" | head
-              exit 1
-            fi
-            mkdir -p "$CXX_DST_V7A"
-            cp "$CXX_SRC_V7A" "$CXX_DST_V7A/"
-            echo "✅ 已补入 armeabi-v7a libc++_shared.so"
-          fi
-          ls -lh appflowy_flutter/android/app/src/main/jniLibs/*/
-
+          [ -f "$CXX_SRC" ] || { find "${ANDROID_NDK_HOME}" -name libc++_shared.so -path "*aarch64*" | head; exit 1; }
+          mkdir -p "$CXX_DST" && cp "$CXX_SRC" "$CXX_DST/"
           cd appflowy_flutter
-          if [ ${{ inputs.build_type }} = "apk" ]; then
-            if [ "${{ inputs.arch }}" = "universal" ]; then
-              flutter build apk --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
-            else
-              flutter build apk --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
-            fi
-          elif [ ${{ inputs.build_type }} = "appbundle" ]; then
-            if [ "${{ inputs.arch }}" = "universal" ]; then
-              flutter build appbundle --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
-            else
-              flutter build appbundle --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
-            fi
-          fi
+          flutter build apk --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
 
-      # 前几轮里 --target-platform 与 abiFilters 都未能排除插件 AAR 带的 .so，
-      # 产出过「声明支持 x86_64 却缺 libdart_ffi.so」的必崩包。
-      # 此处直接查验产物，不合格就让构建失败，避免坏包被上传或误发布。
       - name: Verify APK native libraries
-        if: inputs.build_type == 'apk'
         working-directory: frontend/appflowy_flutter
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
           APK=build/app/outputs/flutter-apk/app-release.apk
-          echo "APK 内的 ABI 目录："
-          unzip -l "$APK" | grep -oE 'lib/[a-z0-9_-]+/' | sort -u
-
-          if [ "${{ inputs.arch }}" = "universal" ]; then
-            # universal 允许 arm64-v8a + armeabi-v7a
-            BAD=$(unzip -l "$APK" | grep -oE 'lib/(x86|x86_64|armeabi)/' | sort -u)
-          else
-            BAD=$(unzip -l "$APK" | grep -oE 'lib/(x86|x86_64|armeabi-v7a|armeabi)/' | sort -u)
-          fi
-          if [ -n "$BAD" ]; then
-            echo "❌ APK 中含未编译 Rust 库的 ABI，装到这些设备上会崩："
-            echo "$BAD"
-            exit 1
-          fi
-
-          # 逐个 .so 核对 DT_NEEDED
+          BAD=$(unzip -l "$APK" | grep -oE 'lib/(x86|x86_64|armeabi-v7a|armeabi)/' | sort -u)
+          [ -z "$BAD" ] || { echo "❌ 多余 ABI: $BAD"; exit 1; }
           READELF="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
           SYS=" libc.so libm.so libdl.so liblog.so libandroid.so libz.so libGLESv2.so libGLESv3.so libEGL.so libOpenSLES.so libvulkan.so libjnigraphics.so libmediandk.so libnativewindow.so libaaudio.so libcamera2ndk.so libstdc++.so libneuralnetworks.so libsync.so libamidi.so libnativehelper.so "
+          rm -rf /tmp/apkverify && mkdir -p /tmp/apkverify
+          unzip -o -q "$APK" 'lib/arm64-v8a/*' -d /tmp/apkverify
+          PRESENT=" $(ls /tmp/apkverify/lib/arm64-v8a/ | tr '\n' ' ') "
+          FAIL=0
+          for so in /tmp/apkverify/lib/arm64-v8a/*.so; do
+            for need in $("$READELF" -d "$so" 2>/dev/null | grep NEEDED | sed 's/.*\[\(.*\)\]/\1/'); do
+              case "$SYS$PRESENT" in *" $need "*) ;; *) echo "❌ $(basename $so) -> $need"; FAIL=1 ;; esac
+            done
+          done
+          for must in libdart_ffi.so libc++_shared.so libapp.so libflutter.so; do
+            unzip -l "$APK" | grep -q "lib/arm64-v8a/$must" || { echo "❌ 缺少 $must"; FAIL=1; }
+          done
+          [ "$FAIL" = "1" ] && exit 1
+          echo "✅ arm64 APK 验证通过"
 
-          verify_abi() {
-            local abi="$1"
+      - name: Rename and upload APK
+        run: |
+          mv frontend/appflowy_flutter/build/app/outputs/flutter-apk/app-release.apk \
+             frontend/appflowy_flutter/build/app/outputs/flutter-apk/${{ env.ANDROID_APK_NAME }}.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ANDROID_APK_NAME }}.apk
+          path: frontend/appflowy_flutter/build/app/outputs/flutter-apk/${{ env.ANDROID_APK_NAME }}.apk
+
+      - name: Upload APK to Release
+        if: inputs.upload_url != ''
+        shell: bash
+        run: |
+          filename="${{ env.ANDROID_APK_NAME }}.apk"
+          filepath="frontend/appflowy_flutter/build/app/outputs/flutter-apk/$filename"
+          encoded_filename=$(echo -n "$filename" | jq -sRr @uri)
+          upload_url=$(echo "${{ inputs.upload_url }}" | sed 's/{[^}]*}//g')
+          curl -L -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @"$filepath" \
+            "${upload_url}?name=${encoded_filename}" --fail-with-body
+
+  # ============================================================
+  # universal job: arm64-v8a + armeabi-v7a 兼容包
+  # ============================================================
+  universal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    env:
+      ANDROID_APK_NAME: PonyNotes-${{ inputs.build_name }}-android-universal
+
+    steps:
+      - name: Maximize build space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc "/usr/local/share/boost" "$AGENT_TOOLSDIRECTORY"
+
+      - name: Checkout source code
+        uses: actions/checkout@v2
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.branch }}
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+
+      - name: Download PonyNotes-Cloud-New (for client-api dependency)
+        run: |
+          TARGET_DIR="${GITHUB_WORKSPACE}/../PonyNotes-Cloud-New"
+          curl -sL https://github.com/PonyNotes-IO/PonyNotes-Cloud-New/archive/refs/heads/main.tar.gz -o /tmp/cloud.tar.gz
+          tar -xzf /tmp/cloud.tar.gz -C /tmp 2>/dev/null || true
+          rm -f /tmp/PonyNotes-Cloud-New-main/nginx.conf
+          rm -rf /tmp/PonyNotes-Cloud-New-main/nginx
+          mv /tmp/PonyNotes-Cloud-New-main "$TARGET_DIR"
+          rm /tmp/cloud.tar.gz
+
+      - name: Download AppFlowy-Collab (for collab dependencies)
+        run: |
+          TARGET_DIR="${GITHUB_WORKSPACE}/../AppFlowy-Collab"
+          curl -sL https://github.com/PonyNotes-IO/AppFlowy-Collab/archive/refs/heads/dev.tar.gz -o /tmp/collab.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/collab.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/AppFlowy-Collab-dev/* "$TARGET_DIR/"
+          rm -rf /tmp/AppFlowy-Collab-dev /tmp/collab.tar.gz
+
+      - name: Download rust-rocksdb (for rocksdb dependency)
+        run: |
+          TARGET_DIR="${GITHUB_WORKSPACE}/../rust-rocksdb"
+          git clone https://github.com/rust-rocksdb/rust-rocksdb.git "$TARGET_DIR"
+          cd "$TARGET_DIR"
+          git checkout 1710120e4549e04ba3baa6a1ee5a5a801fa45a72
+          git submodule update --init --recursive --depth 1
+
+      - name: Download langchain-rust (for langchain-rust dependency)
+        run: |
+          TARGET_DIR="${GITHUB_WORKSPACE}/../langchain-rust"
+          curl -sL https://github.com/appflowy/langchain-rust/archive/refs/heads/af.tar.gz -o /tmp/langchain.tar.gz
+          mkdir -p "$TARGET_DIR"
+          tar -xzf /tmp/langchain.tar.gz -C /tmp 2>/dev/null || true
+          mv /tmp/langchain-rust-af/* "$TARGET_DIR/"
+          rm -rf /tmp/langchain-rust-af /tmp/langchain.tar.gz
+
+      - name: Patch Cargo.toml to use local paths for git dependencies
+        run: |
+          CARGO_TOML="${GITHUB_WORKSPACE}/frontend/rust-lib/Cargo.toml"
+          cp "$CARGO_TOML" "$CARGO_TOML.bak"
+          for c in collab collab-entity collab-folder collab-document collab-database collab-plugins collab-user; do
+            sed -i "s|^${c} = { version = \"0.2\", git = \"https://github.com/PonyNotes-IO/AppFlowy-Collab\", branch = \"dev\" }|${c} = { path = \"../../../AppFlowy-Collab/${c}\" }|g" "$CARGO_TOML"
+          done
+          sed -i 's|^collab-importer = { version = "0.1", git = "https://github.com/PonyNotes-IO/AppFlowy-Collab", branch = "dev" }|collab-importer = { path = "../../../AppFlowy-Collab/collab-importer" }|g' "$CARGO_TOML"
+          sed -i 's|^rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb", rev = "1710120e4549e04ba3baa6a1ee5a5a801fa45a72" }|rocksdb = { path = "../../../rust-rocksdb" }|g' "$CARGO_TOML"
+          sed -i 's|^langchain-rust = { version = "4.6.0", git = "https://github.com/appflowy/langchain-rust", branch = "af" }|langchain-rust = { path = "../../../langchain-rust" }|g' "$CARGO_TOML"
+          if grep -nE '^(collab[a-z-]*|rocksdb|langchain-rust) = .*git = ' "$CARGO_TOML"; then
+            echo "❌ 残留 git 依赖"; exit 1
+          fi
+
+      - name: Strip Windows-only Android linker config
+        run: |
+          CFG="${GITHUB_WORKSPACE}/frontend/rust-lib/.cargo/config.toml"
+          [ ! -f "$CFG" ] && exit 0
+          awk '/^\[/ { skip = ($0 ~ /^\[target\.[a-z0-9_]+-linux-android[a-z]*\]/) } !skip' "$CFG" > "$CFG.new"
+          mv "$CFG.new" "$CFG"
+
+      - name: Strip machine-specific java.home
+        run: |
+          GP="${GITHUB_WORKSPACE}/frontend/appflowy_flutter/android/gradle.properties"
+          [ ! -f "$GP" ] && exit 0
+          sed -i '/^org\.gradle\.java\.home=/d' "$GP"
+
+      - name: Build Rust in release profile (arm64 + armeabi-v7a)
+        run: |
+          MT="${GITHUB_WORKSPACE}/frontend/scripts/makefile/mobile.toml"
+          sed -i 's|-o ./jniLibs build --package dart-ffi|-o ./jniLibs build --release --package dart-ffi|' "$MT"
+          echo "保留双架构: arm64-v8a + armeabi-v7a"
+
+      - name: Restrict ABIs to arm64-v8a + armeabi-v7a
+        run: |
+          BG="${GITHUB_WORKSPACE}/frontend/appflowy_flutter/android/app/build.gradle"
+          python3 - "$BG" "universal" <<'PY'
+          import sys, re
+          p, arch = sys.argv[1], sys.argv[2]
+          s = open(p, encoding='utf-8').read()
+          if re.search(r'splits\s*\{\s*abi\s*\{[^}]*enable\s+true', s):
+              s = re.sub(r'(splits\s*\{\s*abi\s*\{[^}]*?)enable\s+true', r'\1enable false', s, count=1)
+          if 'abiFilters' not in s:
+              anchor = '        multiDexEnabled true\n'
+              s = s.replace(anchor, anchor + "        ndk {\n            abiFilters 'arm64-v8a', 'armeabi-v7a'\n        }\n", 1)
+          if 'packaging {' not in s:
+              anchor2 = '    defaultConfig {'
+              block = ("    packaging {\n"
+                       "        jniLibs {\n"
+                       "            excludes += ['lib/x86/**', 'lib/x86_64/**']\n"
+                       "        }\n"
+                       "    }\n\n")
+              s = s.replace(anchor2, block + anchor2, 1)
+          open(p, 'w', encoding='utf-8').write(s)
+          PY
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          target: aarch64-linux-android
+          override: true
+          profile: minimal
+
+      - name: Install flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: "r26d"
+          add-to-path: true
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: android-universal
+          workspaces: |
+            frontend/rust-lib
+
+      - uses: davidB/rust-cargo-make@v1
+        with:
+          version: "0.37.5"
+
+      - name: Install prerequisites
+        working-directory: frontend
+        run: |
+          rustup target install aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+          cargo install duckscript_cli --force --locked
+          cargo install --version 3.3.0 cargo-ndk --locked
+          sudo wget -qO /etc/apt/trusted.gpg.d/dart_linux_signing_key.asc https://dl-ssl.google.com/linux/linux_signing_key.pub
+          sudo wget -qO /etc/apt/sources.list.d/dart_stable.list https://storage.googleapis.com/download.dartlang.org/linux/debian/dart_stable.list
+          sudo apt-get update
+          sudo apt-get install -y dart curl build-essential libssl-dev clang cmake ninja-build pkg-config libgtk-3-dev keybinder-3.0 libnotify-dev gcc-multilib libmpv-dev mpv
+          cargo make appflowy-flutter-deps-tools
+        shell: bash
+
+      - name: Generate env file
+        working-directory: frontend/appflowy_flutter
+        run: |
+          echo "INTERNAL_BUILD=${{ inputs.internal_build }}" >> .env
+          echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> .env
+
+      - name: Configure release sign
+        working-directory: frontend/appflowy_flutter/android/app
+        run: sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' build.gradle
+
+      - name: Configure key.properties
+        working-directory: frontend/appflowy_flutter/android
+        run: |
+          echo "${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}" | base64 --decode > app/upload-keystore.jks
+          echo -e "storePassword=${{ secrets.ANDROID_UPLOAD_KEYSTORE_STORE_PASSWORD }}\nkeyPassword=${{ secrets.ANDROID_UPLOAD_KEYSTORE_KEY_PASSWORD }}\nkeyAlias=upload\nstoreFile=upload-keystore.jks" > key.properties
+
+      - name: Configure Git credentials for Cargo
+        run: |
+          git config --global credential.helper store
+          echo "https://${{ secrets.ADMIN_GITHUB_TOKEN }}:x-oauth-basic@github.com" > ~/.git-credentials
+
+      - name: Build PonyNotes (universal)
+        working-directory: frontend
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          cargo make --profile production-android appflowy-core-dev-android-ci
+          cargo make --profile production-android code_generation
+          ls -lh rust-lib/jniLibs/*/ || true
+          # arm64 libc++_shared.so
+          CXX_SRC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so"
+          CXX_DST="appflowy_flutter/android/app/src/main/jniLibs/arm64-v8a"
+          [ -f "$CXX_SRC" ] || { find "${ANDROID_NDK_HOME}" -name libc++_shared.so -path "*aarch64*" | head; exit 1; }
+          mkdir -p "$CXX_DST" && cp "$CXX_SRC" "$CXX_DST/"
+          # armeabi-v7a libc++_shared.so
+          CXX_SRC_V7A="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so"
+          CXX_DST_V7A="appflowy_flutter/android/app/src/main/jniLibs/armeabi-v7a"
+          [ -f "$CXX_SRC_V7A" ] || { find "${ANDROID_NDK_HOME}" -name libc++_shared.so -path "*arm-linux*" | head; exit 1; }
+          mkdir -p "$CXX_DST_V7A" && cp "$CXX_SRC_V7A" "$CXX_DST_V7A/"
+          ls -lh appflowy_flutter/android/app/src/main/jniLibs/*/
+          cd appflowy_flutter
+          flutter build apk --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
+
+      - name: Verify APK native libraries
+        working-directory: frontend/appflowy_flutter
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          APK=build/app/outputs/flutter-apk/app-release.apk
+          BAD=$(unzip -l "$APK" | grep -oE 'lib/(x86|x86_64|armeabi)/' | sort -u)
+          [ -z "$BAD" ] || { echo "❌ 多余 ABI: $BAD"; exit 1; }
+          READELF="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          SYS=" libc.so libm.so libdl.so liblog.so libandroid.so libz.so libGLESv2.so libGLESv3.so libEGL.so libOpenSLES.so libvulkan.so libjnigraphics.so libmediandk.so libnativewindow.so libaaudio.so libcamera2ndk.so libstdc++.so libneuralnetworks.so libsync.so libamidi.so libnativehelper.so "
+          FAIL=0
+          for abi in arm64-v8a armeabi-v7a; do
             rm -rf /tmp/apkverify && mkdir -p /tmp/apkverify
-            unzip -o -q "$APK" "lib/${abi}/*" -d /tmp/apkverify 2>/dev/null || return 0
+            unzip -o -q "$APK" "lib/${abi}/*" -d /tmp/apkverify 2>/dev/null || continue
             PRESENT=" $(ls /tmp/apkverify/lib/${abi}/ | tr '\n' ' ') "
-            echo "APK 内 ${abi} .so：$PRESENT"
-            local fail=0
             for so in /tmp/apkverify/lib/${abi}/*.so; do
               for need in $("$READELF" -d "$so" 2>/dev/null | grep NEEDED | sed 's/.*\[\(.*\)\]/\1/'); do
-                case "$SYS$PRESENT" in
-                  *" $need "*) ;;
-                  *) echo "❌ $(basename $so) 依赖 $need，但 APK 内没有"; fail=1 ;;
-                esac
+                case "$SYS$PRESENT" in *" $need "*) ;; *) echo "❌ $(basename $so) -> $need ($abi)"; FAIL=1 ;; esac
               done
             done
             for must in libdart_ffi.so libc++_shared.so libapp.so libflutter.so; do
-              if ! unzip -l "$APK" | grep -q "lib/${abi}/$must"; then
-                echo "❌ 缺少 lib/${abi}/$must"
-                fail=1
-              fi
+              unzip -l "$APK" | grep -q "lib/${abi}/$must" || { echo "❌ 缺少 lib/${abi}/$must"; FAIL=1; }
             done
-            return $fail
-          }
-
-          FAIL=0
-          verify_abi arm64-v8a || FAIL=1
-          if [ "${{ inputs.arch }}" = "universal" ]; then
-            verify_abi armeabi-v7a || FAIL=1
-          fi
+          done
           [ "$FAIL" = "1" ] && exit 1
-          echo "✅ APK 原生库验证通过"
+          echo "✅ universal APK 验证通过"
 
-      - name: Compress debug symbols
-        working-directory: frontend/appflowy_flutter
+      - name: Rename and upload APK
         run: |
-          tar -czf debug-symbols.tar.gz debug_info
+          mv frontend/appflowy_flutter/build/app/outputs/flutter-apk/app-release.apk \
+             frontend/appflowy_flutter/build/app/outputs/flutter-apk/${{ env.ANDROID_APK_NAME }}.apk
 
-      - name: Rename APK
-        if: inputs.build_type == 'apk'
-        run: |
-          APK_SRC="frontend/appflowy_flutter/build/app/outputs/flutter-apk/app-release.apk"
-          if [ "${{ inputs.arch }}" = "universal" ]; then
-            mv "$APK_SRC" "frontend/appflowy_flutter/build/app/outputs/flutter-apk/PonyNotes-${{ inputs.build_name }}-android-universal.apk"
-          else
-            mv "$APK_SRC" "frontend/appflowy_flutter/build/app/outputs/flutter-apk/PonyNotes-${{ inputs.build_name }}-android-arm64.apk"
-          fi
-        shell: bash
-
-      - name: Upload APK
-        if: inputs.build_type == 'apk'
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PonyNotes-${{ inputs.build_name }}-android-${{ inputs.arch }}-apk
-          path: frontend/appflowy_flutter/build/app/outputs/flutter-apk/PonyNotes-${{ inputs.build_name }}-android-${{ inputs.arch }}.apk
-
-      - name: Rename AAB
-        if: inputs.build_type == 'appbundle'
-        run: |
-          mv frontend/appflowy_flutter/build/app/outputs/bundle/release/app-release.aab frontend/appflowy_flutter/build/app/outputs/bundle/release/PonyNotes-${{ inputs.build_name }}.aab
-        shell: bash
-
-      - name: Upload AAB
-        if: inputs.build_type == 'appbundle'
-        uses: actions/upload-artifact@v4
-        with:
-          name: PonyNotes-${{ inputs.build_name }}-android-aab
-          path: frontend/appflowy_flutter/build/app/outputs/bundle/release/PonyNotes-${{ inputs.build_name }}.aab
-
-      - name: Upload debug symbols
-        uses: actions/upload-artifact@v4
-        with:
-          name: PonyNotes-${{ inputs.build_name }}-android-${{ inputs.build_type }}-debug-symbols
-          path: frontend/appflowy_flutter/debug-symbols.tar.gz
+          name: ${{ env.ANDROID_APK_NAME }}.apk
+          path: frontend/appflowy_flutter/build/app/outputs/flutter-apk/${{ env.ANDROID_APK_NAME }}.apk
 
       - name: Upload APK to Release
-        if: inputs.build_type == 'apk' && inputs.upload_url != ''
+        if: inputs.upload_url != ''
+        shell: bash
         run: |
-          if [ "${{ inputs.arch }}" = "universal" ]; then
-            filename="PonyNotes-${{ inputs.build_name }}-android-universal.apk"
-          else
-            filename="PonyNotes-${{ inputs.build_name }}-android-arm64.apk"
-          fi
+          filename="${{ env.ANDROID_APK_NAME }}.apk"
           filepath="frontend/appflowy_flutter/build/app/outputs/flutter-apk/$filename"
-
-          # URL encode the filename
           encoded_filename=$(echo -n "$filename" | jq -sRr @uri)
-
-          # Remove the {?name,label} template from upload URL if present
           upload_url=$(echo "${{ inputs.upload_url }}" | sed 's/{[^}]*}//g')
-
-          echo "Uploading $filename to release..."
-
-          curl -L \
-            -X POST \
+          curl -L -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/octet-stream" \
             --data-binary @"$filepath" \
-            "${upload_url}?name=${encoded_filename}" \
-            --fail-with-body
-
-      - name: Upload AAB to Release
-        if: inputs.build_type == 'appbundle' && inputs.upload_url != ''
-        run: |
-          filename="PonyNotes-${{ inputs.build_name }}.aab"
-          filepath="frontend/appflowy_flutter/build/app/outputs/bundle/release/$filename"
-          
-          # URL encode the filename
-          encoded_filename=$(echo -n "$filename" | jq -sRr @uri)
-          
-          # Remove the {?name,label} template from upload URL if present
-          upload_url=$(echo "${{ inputs.upload_url }}" | sed 's/{[^}]*}//g')
-          
-          echo "Uploading $filename to release..."
-          
-          curl -L \
-            -X POST \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/octet-stream" \
-            --data-binary @"$filepath" \
-            "${upload_url}?name=${encoded_filename}" \
-            --fail-with-body
-
-
+            "${upload_url}?name=${encoded_filename}" --fail-with-body
