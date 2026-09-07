@@ -533,15 +533,20 @@ jobs:
       - name: Rename APK
         if: inputs.build_type == 'apk'
         run: |
-          mv frontend/appflowy_flutter/build/app/outputs/flutter-apk/app-release.apk frontend/appflowy_flutter/build/app/outputs/flutter-apk/PonyNotes-${{ inputs.build_name }}-android.apk
+          APK_SRC="frontend/appflowy_flutter/build/app/outputs/flutter-apk/app-release.apk"
+          if [ "${{ inputs.arch }}" = "universal" ]; then
+            mv "$APK_SRC" "frontend/appflowy_flutter/build/app/outputs/flutter-apk/PonyNotes-${{ inputs.build_name }}-android-universal.apk"
+          else
+            mv "$APK_SRC" "frontend/appflowy_flutter/build/app/outputs/flutter-apk/PonyNotes-${{ inputs.build_name }}-android-arm64.apk"
+          fi
         shell: bash
 
       - name: Upload APK
         if: inputs.build_type == 'apk'
         uses: actions/upload-artifact@v4
         with:
-          name: PonyNotes-${{ inputs.build_name }}-android-apk
-          path: frontend/appflowy_flutter/build/app/outputs/flutter-apk/PonyNotes-${{ inputs.build_name }}-android.apk
+          name: PonyNotes-${{ inputs.build_name }}-android-${{ inputs.arch }}-apk
+          path: frontend/appflowy_flutter/build/app/outputs/flutter-apk/PonyNotes-${{ inputs.build_name }}-android-${{ inputs.arch }}.apk
 
       - name: Rename AAB
         if: inputs.build_type == 'appbundle'
@@ -565,17 +570,21 @@ jobs:
       - name: Upload APK to Release
         if: inputs.build_type == 'apk' && inputs.upload_url != ''
         run: |
-          filename="PonyNotes-${{ inputs.build_name }}-android.apk"
+          if [ "${{ inputs.arch }}" = "universal" ]; then
+            filename="PonyNotes-${{ inputs.build_name }}-android-universal.apk"
+          else
+            filename="PonyNotes-${{ inputs.build_name }}-android-arm64.apk"
+          fi
           filepath="frontend/appflowy_flutter/build/app/outputs/flutter-apk/$filename"
-          
+
           # URL encode the filename
           encoded_filename=$(echo -n "$filename" | jq -sRr @uri)
-          
+
           # Remove the {?name,label} template from upload URL if present
           upload_url=$(echo "${{ inputs.upload_url }}" | sed 's/{[^}]*}//g')
-          
+
           echo "Uploading $filename to release..."
-          
+
           curl -L \
             -X POST \
             -H "Accept: application/vnd.github.v3+json" \
