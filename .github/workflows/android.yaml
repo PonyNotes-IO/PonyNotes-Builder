@@ -105,11 +105,11 @@ jobs:
       - name: Download AppFlowy-Collab (for collab dependencies)
         run: |
           TARGET_DIR="${GITHUB_WORKSPACE}/../AppFlowy-Collab"
-          curl -sL https://github.com/PonyNotes-IO/AppFlowy-Collab/archive/refs/heads/dev.tar.gz -o /tmp/collab.tar.gz
+          curl -sL https://github.com/PonyNotes-IO/PonyNotes-Collab/archive/refs/heads/main.tar.gz -o /tmp/collab.tar.gz
           mkdir -p "$TARGET_DIR"
           tar -xzf /tmp/collab.tar.gz -C /tmp 2>/dev/null || true
-          mv /tmp/AppFlowy-Collab-dev/* "$TARGET_DIR/"
-          rm -rf /tmp/AppFlowy-Collab-dev /tmp/collab.tar.gz
+          mv /tmp/PonyNotes-Collab-main/* "$TARGET_DIR/"
+          rm -rf /tmp/PonyNotes-Collab-main /tmp/collab.tar.gz
 
       - name: Download rust-rocksdb (for rocksdb dependency)
         run: |
@@ -355,11 +355,11 @@ jobs:
       - name: Download AppFlowy-Collab (for collab dependencies)
         run: |
           TARGET_DIR="${GITHUB_WORKSPACE}/../AppFlowy-Collab"
-          curl -sL https://github.com/PonyNotes-IO/AppFlowy-Collab/archive/refs/heads/dev.tar.gz -o /tmp/collab.tar.gz
+          curl -sL https://github.com/PonyNotes-IO/PonyNotes-Collab/archive/refs/heads/main.tar.gz -o /tmp/collab.tar.gz
           mkdir -p "$TARGET_DIR"
           tar -xzf /tmp/collab.tar.gz -C /tmp 2>/dev/null || true
-          mv /tmp/AppFlowy-Collab-dev/* "$TARGET_DIR/"
-          rm -rf /tmp/AppFlowy-Collab-dev /tmp/collab.tar.gz
+          mv /tmp/PonyNotes-Collab-main/* "$TARGET_DIR/"
+          rm -rf /tmp/PonyNotes-Collab-main /tmp/collab.tar.gz
 
       - name: Download rust-rocksdb (for rocksdb dependency)
         run: |
