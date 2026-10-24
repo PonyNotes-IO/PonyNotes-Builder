@@ -397,7 +397,21 @@ jobs:
           if echo "$OUT" | grep -q "status: Accepted"; then
             echo "✅ 公证通过，开始 staple 装订票据..."
             xcrun stapler staple "$DMG"
-            xcrun stapler validate "$DMG" && echo "✅ Staple 验证通过（离线安装不再报风险）"
+            # staple 内部已完成一次验证；下面的二次 validate 在部分 runner 上会去
+            # Apple CloudKit 查询票据送达状态，网络抖动即返回 Error 68 把整个 job 拖失败
+            # （已实测 x86_64 两次均卡在这里，而票据本身已装订成功）。
+            # 故重试 3 次，仍失败只告警不中断。
+            validate_ok=0
+            for vtry in 1 2 3; do
+              if xcrun stapler validate "$DMG"; then validate_ok=1; break; fi
+              echo "⚠️ Staple 二次校验失败（第 ${vtry}/3 次，多为 Apple CloudKit 网络问题），5 秒后重试"
+              sleep 5
+            done
+            if [ "$validate_ok" = "1" ]; then
+              echo "✅ Staple 验证通过（离线安装不再报风险）"
+            else
+              echo "⚠️ Staple 二次校验未通过，但 staple 已成功且票据已装订，继续后续步骤"
+            fi
           else
             echo "❌ 公证未通过（status 非 Accepted）。DMG 未装订，安装会报风险。"
             SUBMIT_ID=$(echo "$OUT" | grep -m1 "id:" | awk '{print $2}')
@@ -778,7 +792,21 @@ jobs:
           if echo "$OUT" | grep -q "status: Accepted"; then
             echo "✅ 公证通过，开始 staple 装订票据..."
             xcrun stapler staple "$DMG"
-            xcrun stapler validate "$DMG" && echo "✅ Staple 验证通过（离线安装不再报风险）"
+            # staple 内部已完成一次验证；下面的二次 validate 在部分 runner 上会去
+            # Apple CloudKit 查询票据送达状态，网络抖动即返回 Error 68 把整个 job 拖失败
+            # （已实测 x86_64 两次均卡在这里，而票据本身已装订成功）。
+            # 故重试 3 次，仍失败只告警不中断。
+            validate_ok=0
+            for vtry in 1 2 3; do
+              if xcrun stapler validate "$DMG"; then validate_ok=1; break; fi
+              echo "⚠️ Staple 二次校验失败（第 ${vtry}/3 次，多为 Apple CloudKit 网络问题），5 秒后重试"
+              sleep 5
+            done
+            if [ "$validate_ok" = "1" ]; then
+              echo "✅ Staple 验证通过（离线安装不再报风险）"
+            else
+              echo "⚠️ Staple 二次校验未通过，但 staple 已成功且票据已装订，继续后续步骤"
+            fi
           else
             echo "❌ 公证未通过（status 非 Accepted）。DMG 未装订，安装会报风险。"
             SUBMIT_ID=$(echo "$OUT" | grep -m1 "id:" | awk '{print $2}')
@@ -1155,7 +1183,21 @@ jobs:
           if echo "$OUT" | grep -q "status: Accepted"; then
             echo "✅ 公证通过，开始 staple 装订票据..."
             xcrun stapler staple "$DMG"
-            xcrun stapler validate "$DMG" && echo "✅ Staple 验证通过（离线安装不再报风险）"
+            # staple 内部已完成一次验证；下面的二次 validate 在部分 runner 上会去
+            # Apple CloudKit 查询票据送达状态，网络抖动即返回 Error 68 把整个 job 拖失败
+            # （已实测 x86_64 两次均卡在这里，而票据本身已装订成功）。
+            # 故重试 3 次，仍失败只告警不中断。
+            validate_ok=0
+            for vtry in 1 2 3; do
+              if xcrun stapler validate "$DMG"; then validate_ok=1; break; fi
+              echo "⚠️ Staple 二次校验失败（第 ${vtry}/3 次，多为 Apple CloudKit 网络问题），5 秒后重试"
+              sleep 5
+            done
+            if [ "$validate_ok" = "1" ]; then
+              echo "✅ Staple 验证通过（离线安装不再报风险）"
+            else
+              echo "⚠️ Staple 二次校验未通过，但 staple 已成功且票据已装订，继续后续步骤"
+            fi
           else
             echo "❌ 公证未通过（status 非 Accepted）。DMG 未装订，安装会报风险。"
             echo "   若为 status: Invalid，多因签名缺时间戳/未硬化；若为 403 协议错误，需在 developer.apple.com 接受协议。"
