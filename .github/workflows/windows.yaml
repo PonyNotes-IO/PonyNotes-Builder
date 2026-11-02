@@ -49,6 +49,8 @@ on:
 env:
   FLUTTER_VERSION: "3.35.1"  # Windows 官方清单无 3.35.0(仅 macOS/Linux 发布),用同系列 3.35.1
   RUST_TOOLCHAIN: "1.91.0"
+  # 置 1 时把安装包/绿色版镜像到七牛 ci-mirror/<版本>/，规避国际链路限速
+  WINDOWS_QINIU_MIRROR: "1"
 
 jobs:
   build:
@@ -348,6 +350,34 @@ jobs:
         with:
           name: ${{ env.WINDOWS_INSTALLER_NAME }}.exe
           path: ${{ env.WINDOWS_APP_RELEASE_PATH }}\Output\${{ env.WINDOWS_INSTALLER_NAME }}.exe
+
+      - name: Mirror artifacts to Qiniu
+        if: env.WINDOWS_QINIU_MIRROR == '1'
+        shell: bash
+        env:
+          QINIU_AK: ${{ secrets.QINIU_ACCESS_KEY }}
+          QINIU_SK: ${{ secrets.QINIU_SECRET_KEY }}
+        run: |
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "seven qiniu secrets missing, skip mirror"
+            exit 0
+          fi
+          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-windows-amd64.zip
+          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
+          QS=$(find /tmp/qshell-bin -iname 'qshell*.exe' -o -iname qshell -type f | head -1)
+          chmod +x "$QS" 2>/dev/null || true
+          "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
+          declare -A FILES=(
+            ["${{ env.WINDOWS_INSTALLER_NAME }}.exe"]="${{ env.WINDOWS_APP_RELEASE_PATH }}/Output/${{ env.WINDOWS_INSTALLER_NAME }}.exe"
+            ["${{ env.WINDOWS_ZIP_NAME }}"]="${{ env.WINDOWS_APP_RELEASE_PATH }}/${{ env.WINDOWS_ZIP_NAME }}"
+          )
+          for name in "${!FILES[@]}"; do
+            src="${FILES[$name]}"
+            [ -f "$src" ] || { echo "skip missing $src"; continue; }
+            echo "mirror $name to qiniu ci-mirror/${{ inputs.build_name }}/"
+            "$QS" rput xiaomabiji "ci-mirror/${{ inputs.build_name }}/$name" "$src" --overwrite \
+              || echo "qiniu mirror failed: $name"
+          done
 
       - name: Upload EXE to Release
         if: inputs.upload_url != ''

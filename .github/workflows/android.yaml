@@ -323,6 +323,27 @@ jobs:
           name: ${{ env.ANDROID_APK_NAME }}.apk
           path: frontend/appflowy_flutter/build/app/outputs/flutter-apk/${{ env.ANDROID_APK_NAME }}.apk
 
+      - name: Mirror artifacts to Qiniu
+        shell: bash
+        env:
+          QINIU_AK: ${{ secrets.QINIU_ACCESS_KEY }}
+          QINIU_SK: ${{ secrets.QINIU_SECRET_KEY }}
+        run: |
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "seven qiniu secrets missing, skip mirror"
+            exit 0
+          fi
+          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-linux-amd64.zip
+          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
+          QS=$(find /tmp/qshell-bin -name qshell -type f | head -1)
+          chmod +x "$QS"
+          "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
+          APK="frontend/appflowy_flutter/build/app/outputs/flutter-apk/${{ env.ANDROID_APK_NAME }}.apk"
+          [ -f "$APK" ] || { echo "skip missing $APK"; exit 0; }
+          echo "mirror ${{ env.ANDROID_APK_NAME }}.apk to qiniu ci-mirror/${{ inputs.build_name }}/"
+          "$QS" rput xiaomabiji "ci-mirror/${{ inputs.build_name }}/${{ env.ANDROID_APK_NAME }}.apk" "$APK" --overwrite \
+            || echo "qiniu mirror failed"
+
       - name: Upload APK to Release
         if: inputs.upload_url != ''
         shell: bash
@@ -595,6 +616,27 @@ jobs:
         with:
           name: ${{ env.ANDROID_APK_NAME }}.apk
           path: frontend/appflowy_flutter/build/app/outputs/flutter-apk/${{ env.ANDROID_APK_NAME }}.apk
+
+      - name: Mirror artifacts to Qiniu
+        shell: bash
+        env:
+          QINIU_AK: ${{ secrets.QINIU_ACCESS_KEY }}
+          QINIU_SK: ${{ secrets.QINIU_SECRET_KEY }}
+        run: |
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "seven qiniu secrets missing, skip mirror"
+            exit 0
+          fi
+          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-linux-amd64.zip
+          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
+          QS=$(find /tmp/qshell-bin -name qshell -type f | head -1)
+          chmod +x "$QS"
+          "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
+          APK="frontend/appflowy_flutter/build/app/outputs/flutter-apk/${{ env.ANDROID_APK_NAME }}.apk"
+          [ -f "$APK" ] || { echo "skip missing $APK"; exit 0; }
+          echo "mirror ${{ env.ANDROID_APK_NAME }}.apk to qiniu ci-mirror/${{ inputs.build_name }}/"
+          "$QS" rput xiaomabiji "ci-mirror/${{ inputs.build_name }}/${{ env.ANDROID_APK_NAME }}.apk" "$APK" --overwrite \
+            || echo "qiniu mirror failed"
 
       - name: Upload APK to Release
         if: inputs.upload_url != ''
