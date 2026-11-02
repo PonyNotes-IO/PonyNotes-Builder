@@ -368,12 +368,14 @@ jobs:
           mkdir -p /tmp/qshell-bin && cd /tmp/qshell-bin && unzip -o -q /tmp/qshell.zip
           QS=$(find /tmp/qshell-bin -type f -iname 'qshell*.exe' | head -1)
           "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
-          declare -A FILES=(
-            ["${{ env.WINDOWS_INSTALLER_NAME }}.exe"]="${{ env.WINDOWS_APP_RELEASE_PATH }}/Output/${{ env.WINDOWS_INSTALLER_NAME }}.exe"
-            ["${{ env.WINDOWS_ZIP_NAME }}"]="${{ env.WINDOWS_APP_RELEASE_PATH }}/${{ env.WINDOWS_ZIP_NAME }}"
-          )
-          for name in "${!FILES[@]}"; do
-            src="${FILES[$name]}"
+          # WINDOWS_APP_RELEASE_PATH 在 Windows 上是反斜杠路径，Git Bash 里会当转义用；
+          # 改成先转正斜杠再拼，否则 find/-f 全部判定为文件不存在。
+          BASE=$(echo "${{ env.WINDOWS_APP_RELEASE_PATH }}" | tr '\\' '/')
+          for name in "${{ env.WINDOWS_INSTALLER_NAME }}.exe" "${{ env.WINDOWS_ZIP_NAME }}"; do
+            case "$name" in
+              *.exe) src="$BASE/Output/$name" ;;
+              *)     src="$BASE/$name" ;;
+            esac
             [ -f "$src" ] || { echo "skip missing $src"; continue; }
             echo "mirror $name to qiniu ci-mirror/${{ inputs.build_name }}/"
             "$QS" rput xiaomabiji "ci-mirror/${{ inputs.build_name }}/$name" "$src" --overwrite \
