@@ -396,11 +396,18 @@ jobs:
           echo "$OUT"
           if echo "$OUT" | grep -q "status: Accepted"; then
             echo "✅ 公证通过，开始 staple 装订票据..."
-            xcrun stapler staple "$DMG"
-            # staple 内部已完成一次验证；下面的二次 validate 在部分 runner 上会去
-            # Apple CloudKit 查询票据送达状态，网络抖动即返回 Error 68 把整个 job 拖失败
-            # （已实测 x86_64 两次均卡在这里，而票据本身已装订成功）。
-            # 故重试 3 次，仍失败只告警不中断。
+            # staple 会去 Apple CloudKit 的 ticket-delivery 接口取票据，该接口抖动时
+            # 直接以 Error 68 "The network connection was lost" 退出。公证此时已 Accepted，
+            # 票据有效，故重试 5 次（间隔递增）再判定失败。
+            staple_ok=0
+            for stry in 1 2 3 4 5; do
+              if xcrun stapler staple "$DMG"; then staple_ok=1; break; fi
+              echo "⚠️ staple 失败（第 ${stry}/5 次，多为 Apple CloudKit 网络抖动，Error 68），$((stry * 10)) 秒后重试"
+              sleep $((stry * 10))
+            done
+            [ "$staple_ok" = "1" ] || { echo "❌ staple 连续 5 次失败，Apple CloudKit 持续不可达"; exit 1; }
+            # staple 内部已完成一次验证；下面的二次 validate 同样会查 CloudKit，
+            # 网络抖动即返回 Error 68，故重试 3 次，仍失败只告警不中断。
             validate_ok=0
             for vtry in 1 2 3; do
               if xcrun stapler validate "$DMG"; then validate_ok=1; break; fi
@@ -791,11 +798,18 @@ jobs:
           echo "$OUT"
           if echo "$OUT" | grep -q "status: Accepted"; then
             echo "✅ 公证通过，开始 staple 装订票据..."
-            xcrun stapler staple "$DMG"
-            # staple 内部已完成一次验证；下面的二次 validate 在部分 runner 上会去
-            # Apple CloudKit 查询票据送达状态，网络抖动即返回 Error 68 把整个 job 拖失败
-            # （已实测 x86_64 两次均卡在这里，而票据本身已装订成功）。
-            # 故重试 3 次，仍失败只告警不中断。
+            # staple 会去 Apple CloudKit 的 ticket-delivery 接口取票据，该接口抖动时
+            # 直接以 Error 68 "The network connection was lost" 退出。公证此时已 Accepted，
+            # 票据有效，故重试 5 次（间隔递增）再判定失败。
+            staple_ok=0
+            for stry in 1 2 3 4 5; do
+              if xcrun stapler staple "$DMG"; then staple_ok=1; break; fi
+              echo "⚠️ staple 失败（第 ${stry}/5 次，多为 Apple CloudKit 网络抖动，Error 68），$((stry * 10)) 秒后重试"
+              sleep $((stry * 10))
+            done
+            [ "$staple_ok" = "1" ] || { echo "❌ staple 连续 5 次失败，Apple CloudKit 持续不可达"; exit 1; }
+            # staple 内部已完成一次验证；下面的二次 validate 同样会查 CloudKit，
+            # 网络抖动即返回 Error 68，故重试 3 次，仍失败只告警不中断。
             validate_ok=0
             for vtry in 1 2 3; do
               if xcrun stapler validate "$DMG"; then validate_ok=1; break; fi
@@ -1182,11 +1196,18 @@ jobs:
           echo "$OUT"
           if echo "$OUT" | grep -q "status: Accepted"; then
             echo "✅ 公证通过，开始 staple 装订票据..."
-            xcrun stapler staple "$DMG"
-            # staple 内部已完成一次验证；下面的二次 validate 在部分 runner 上会去
-            # Apple CloudKit 查询票据送达状态，网络抖动即返回 Error 68 把整个 job 拖失败
-            # （已实测 x86_64 两次均卡在这里，而票据本身已装订成功）。
-            # 故重试 3 次，仍失败只告警不中断。
+            # staple 会去 Apple CloudKit 的 ticket-delivery 接口取票据，该接口抖动时
+            # 直接以 Error 68 "The network connection was lost" 退出。公证此时已 Accepted，
+            # 票据有效，故重试 5 次（间隔递增）再判定失败。
+            staple_ok=0
+            for stry in 1 2 3 4 5; do
+              if xcrun stapler staple "$DMG"; then staple_ok=1; break; fi
+              echo "⚠️ staple 失败（第 ${stry}/5 次，多为 Apple CloudKit 网络抖动，Error 68），$((stry * 10)) 秒后重试"
+              sleep $((stry * 10))
+            done
+            [ "$staple_ok" = "1" ] || { echo "❌ staple 连续 5 次失败，Apple CloudKit 持续不可达"; exit 1; }
+            # staple 内部已完成一次验证；下面的二次 validate 同样会查 CloudKit，
+            # 网络抖动即返回 Error 68，故重试 3 次，仍失败只告警不中断。
             validate_ok=0
             for vtry in 1 2 3; do
               if xcrun stapler validate "$DMG"; then validate_ok=1; break; fi
