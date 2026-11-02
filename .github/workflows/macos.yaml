@@ -951,7 +951,9 @@ jobs:
             --fail-with-body
 
   universal:
-    runs-on: macos-latest
+    # 与 aarch64 一致固定 macos-15：macos-latest 在 2026-11 连续多轮排队 15 分钟
+    # 后被 GitHub 以容量不足取消，固定版本镜像能稳定分到 runner。
+    runs-on: macos-15
     # universal 需编译 x86_64+arm64 两架构再合并，给足时间；超时即快速失败。
     timeout-minutes: 150
 
