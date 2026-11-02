@@ -64,6 +64,9 @@ env:
   FLUTTER_VERSION: "3.35.0"
   RUST_TOOLCHAIN: "1.91.0"
   RUST_BACKTRACE: "1"
+  # 置 1 时额外把产物镜像到七牛 ci-mirror/<版本>/，供国内线路快速取包，
+  # 规避 GitHub artifacts CDN 国际链路限速（实测单连接仅 150~250 KB/s）。
+  MACOS_QINIU_MIRROR: "1"
 
 jobs:
   x86_64:
@@ -443,6 +446,29 @@ jobs:
         with:
           name: ${{ env.MACOS_DMG_NAME }}.dmg
           path: ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg
+
+      - name: Mirror artifacts to Qiniu
+        if: env.MACOS_QINIU_MIRROR == '1'
+        working-directory: ${{ env.MACOS_APP_RELEASE_PATH }}
+        env:
+          QINIU_AK: ${{ secrets.QINIU_ACCESS_KEY }}
+          QINIU_SK: ${{ secrets.QINIU_SECRET_KEY }}
+        run: |
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "seven qiniu secrets missing, skip mirror"
+            exit 0
+          fi
+          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-darwin-amd64.zip
+          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
+          QS=$(find /tmp/qshell-bin -name qshell -type f | head -1)
+          chmod +x "$QS"
+          "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
+          for f in "${{ env.MACOS_DMG_NAME }}.dmg" "${{ env.MACOS_X86_ZIP_NAME }}"; do
+            [ -f "$f" ] || { echo "skip missing $f"; continue; }
+            echo "mirror $f to qiniu ci-mirror/${{ inputs.build_name }}/"
+            "$QS" rput xiaomabiji "ci-mirror/${{ inputs.build_name }}/$f" "$f" --overwrite \
+              || echo "qiniu mirror failed: $f"
+          done
 
       - name: Upload ZIP to Release
         if: inputs.upload_url != ''
@@ -847,6 +873,29 @@ jobs:
           name: ${{ env.MACOS_DMG_NAME }}.dmg
           path: ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg
 
+      - name: Mirror artifacts to Qiniu
+        if: env.MACOS_QINIU_MIRROR == '1'
+        working-directory: ${{ env.MACOS_APP_RELEASE_PATH }}
+        env:
+          QINIU_AK: ${{ secrets.QINIU_ACCESS_KEY }}
+          QINIU_SK: ${{ secrets.QINIU_SECRET_KEY }}
+        run: |
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "seven qiniu secrets missing, skip mirror"
+            exit 0
+          fi
+          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-darwin-amd64.zip
+          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
+          QS=$(find /tmp/qshell-bin -name qshell -type f | head -1)
+          chmod +x "$QS"
+          "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
+          for f in "${{ env.MACOS_DMG_NAME }}.dmg" "${{ env.MACOS_AARCH64_ZIP_NAME }}"; do
+            [ -f "$f" ] || { echo "skip missing $f"; continue; }
+            echo "mirror $f to qiniu ci-mirror/${{ inputs.build_name }}/"
+            "$QS" rput xiaomabiji "ci-mirror/${{ inputs.build_name }}/$f" "$f" --overwrite \
+              || echo "qiniu mirror failed: $f"
+          done
+
       - name: Upload ZIP to Release
         if: inputs.upload_url != ''
         run: |
@@ -1245,6 +1294,29 @@ jobs:
         with:
           name: ${{ env.MACOS_DMG_NAME }}.dmg
           path: ${{ env.MACOS_APP_RELEASE_PATH }}/${{ env.MACOS_DMG_NAME }}.dmg
+
+      - name: Mirror artifacts to Qiniu
+        if: env.MACOS_QINIU_MIRROR == '1'
+        working-directory: ${{ env.MACOS_APP_RELEASE_PATH }}
+        env:
+          QINIU_AK: ${{ secrets.QINIU_ACCESS_KEY }}
+          QINIU_SK: ${{ secrets.QINIU_SECRET_KEY }}
+        run: |
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "seven qiniu secrets missing, skip mirror"
+            exit 0
+          fi
+          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-darwin-amd64.zip
+          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
+          QS=$(find /tmp/qshell-bin -name qshell -type f | head -1)
+          chmod +x "$QS"
+          "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
+          for f in "${{ env.MACOS_DMG_NAME }}.dmg" "${{ env.MACOS_AARCH64_ZIP_NAME }}"; do
+            [ -f "$f" ] || { echo "skip missing $f"; continue; }
+            echo "mirror $f to qiniu ci-mirror/${{ inputs.build_name }}/"
+            "$QS" rput xiaomabiji "ci-mirror/${{ inputs.build_name }}/$f" "$f" --overwrite \
+              || echo "qiniu mirror failed: $f"
+          done
 
       - name: Upload ZIP to Release
         if: inputs.upload_url != ''
