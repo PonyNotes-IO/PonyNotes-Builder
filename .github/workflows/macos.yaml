@@ -458,9 +458,13 @@ jobs:
             echo "seven qiniu secrets missing, skip mirror"
             exit 0
           fi
-          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-darwin-amd64.zip
-          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
-          QS=$(find /tmp/qshell-bin -name qshell -type f | head -1)
+          QSHELL_VER=2.19.13
+          ARCH=$(uname -m)
+          [ "$ARCH" = "arm64" ] && QARCH=arm64 || QARCH=amd64
+          curl -sSL -o /tmp/qshell.tgz \
+            "https://github.com/qiniu/qshell/releases/download/v${QSHELL_VER}/qshell-v${QSHELL_VER}-darwin-${QARCH}.tar.gz"
+          mkdir -p /tmp/qshell-bin && tar -xzf /tmp/qshell.tgz -C /tmp/qshell-bin
+          QS=$(find /tmp/qshell-bin -type f -name 'qshell*' ! -name '*.md5' | head -1)
           chmod +x "$QS"
           "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
           for f in "${{ env.MACOS_DMG_NAME }}.dmg" "${{ env.MACOS_X86_ZIP_NAME }}"; do
@@ -884,9 +888,13 @@ jobs:
             echo "seven qiniu secrets missing, skip mirror"
             exit 0
           fi
-          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-darwin-amd64.zip
-          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
-          QS=$(find /tmp/qshell-bin -name qshell -type f | head -1)
+          QSHELL_VER=2.19.13
+          ARCH=$(uname -m)
+          [ "$ARCH" = "arm64" ] && QARCH=arm64 || QARCH=amd64
+          curl -sSL -o /tmp/qshell.tgz \
+            "https://github.com/qiniu/qshell/releases/download/v${QSHELL_VER}/qshell-v${QSHELL_VER}-darwin-${QARCH}.tar.gz"
+          mkdir -p /tmp/qshell-bin && tar -xzf /tmp/qshell.tgz -C /tmp/qshell-bin
+          QS=$(find /tmp/qshell-bin -type f -name 'qshell*' ! -name '*.md5' | head -1)
           chmod +x "$QS"
           "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
           for f in "${{ env.MACOS_DMG_NAME }}.dmg" "${{ env.MACOS_AARCH64_ZIP_NAME }}"; do
@@ -1306,9 +1314,13 @@ jobs:
             echo "seven qiniu secrets missing, skip mirror"
             exit 0
           fi
-          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-darwin-amd64.zip
-          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
-          QS=$(find /tmp/qshell-bin -name qshell -type f | head -1)
+          QSHELL_VER=2.19.13
+          ARCH=$(uname -m)
+          [ "$ARCH" = "arm64" ] && QARCH=arm64 || QARCH=amd64
+          curl -sSL -o /tmp/qshell.tgz \
+            "https://github.com/qiniu/qshell/releases/download/v${QSHELL_VER}/qshell-v${QSHELL_VER}-darwin-${QARCH}.tar.gz"
+          mkdir -p /tmp/qshell-bin && tar -xzf /tmp/qshell.tgz -C /tmp/qshell-bin
+          QS=$(find /tmp/qshell-bin -type f -name 'qshell*' ! -name '*.md5' | head -1)
           chmod +x "$QS"
           "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
           for f in "${{ env.MACOS_DMG_NAME }}.dmg" "${{ env.MACOS_AARCH64_ZIP_NAME }}"; do

@@ -362,10 +362,11 @@ jobs:
             echo "seven qiniu secrets missing, skip mirror"
             exit 0
           fi
-          curl -sSL -o /tmp/qshell.zip https://dn-devtools.qbox.me/qshell/qshell-v2.14.0-windows-amd64.zip
-          unzip -o -q /tmp/qshell.zip -d /tmp/qshell-bin
-          QS=$(find /tmp/qshell-bin -iname 'qshell*.exe' -o -iname qshell -type f | head -1)
-          chmod +x "$QS" 2>/dev/null || true
+          QSHELL_VER=2.19.13
+          curl -sSL -o /tmp/qshell.zip \
+            "https://github.com/qiniu/qshell/releases/download/v${QSHELL_VER}/qshell-v${QSHELL_VER}-windows-amd64.zip"
+          mkdir -p /tmp/qshell-bin && cd /tmp/qshell-bin && unzip -o -q /tmp/qshell.zip
+          QS=$(find /tmp/qshell-bin -type f -iname 'qshell*.exe' | head -1)
           "$QS" account "$QINIU_AK" "$QINIU_SK" ponynotes-ci -w >/dev/null
           declare -A FILES=(
             ["${{ env.WINDOWS_INSTALLER_NAME }}.exe"]="${{ env.WINDOWS_APP_RELEASE_PATH }}/Output/${{ env.WINDOWS_INSTALLER_NAME }}.exe"
