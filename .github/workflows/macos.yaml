@@ -93,15 +93,18 @@ jobs:
           keychain_password=$(openssl rand -hex 24)
           printf '%s' "$MACOS_CERTIFICATE_BASE64" | base64 -D > "$work/certificate.p12"
           security create-keychain -p "$keychain_password" "$keychain"
+          security default-keychain -s "$keychain"
+          security list-keychains -d user -s "$keychain"
           security unlock-keychain -p "$keychain_password" "$keychain"
           security import "$work/certificate.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
           identity=$(security find-identity -v -p codesigning "$keychain" | awk '/Developer ID Application/ {print $2; exit}')
           test -n "$identity"
           printf 'int main(void) { return 0; }\n' | xcrun clang -x c - -o "$work/PonyNotesNotaryProbe"
-          codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$identity" "$work/PonyNotesNotaryProbe"
+          codesign --force --options runtime --timestamp --sign "$identity" "$work/PonyNotesNotaryProbe"
           codesign --verify --strict --verbose=2 "$work/PonyNotesNotaryProbe"
           ditto -c -k "$work/PonyNotesNotaryProbe" "$work/PonyNotesNotaryProbe.zip"
+          echo "提交签名样本至 Apple 公证服务"
           xcrun notarytool submit "$work/PonyNotesNotaryProbe.zip" \
             --apple-id "$APPLE_NOTARY_USER" --team-id "$APPLE_TEAM_ID" --password "$APPLE_NOTARY_PASSWORD" \
             --wait --timeout 6m --output-format json > "$work/notary.json"
