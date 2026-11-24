@@ -25,6 +25,7 @@ on:
           - All
           - x86_64
           - aarch64
+          - notary_check
       internal_build:
         type: choice
         description: "Internal Build Type (1 for internal, 0 for external)"
@@ -69,6 +70,44 @@ env:
   MACOS_QINIU_MIRROR: "1"
 
 jobs:
+  notary_check:
+    if: inputs.arch == 'notary_check'
+    runs-on: macos-15
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - name: Verify Developer ID and Apple notarization
+        shell: bash
+        env:
+          MACOS_CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          APPLE_NOTARY_USER: ${{ secrets.MACOS_NOTARY_USER }}
+          APPLE_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PWD }}
+          APPLE_TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          keychain="$work/probe.keychain-db"
+          trap 'security delete-keychain "$keychain" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
+          keychain_password=$(openssl rand -hex 24)
+          printf '%s' "$MACOS_CERTIFICATE_BASE64" | base64 -D > "$work/certificate.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$work/certificate.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+          identity=$(security find-identity -v -p codesigning "$keychain" | awk '/Developer ID Application/ {print $2; exit}')
+          test -n "$identity"
+          printf 'int main(void) { return 0; }\n' | xcrun clang -x c - -o "$work/PonyNotesNotaryProbe"
+          codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$identity" "$work/PonyNotesNotaryProbe"
+          codesign --verify --strict --verbose=2 "$work/PonyNotesNotaryProbe"
+          ditto -c -k "$work/PonyNotesNotaryProbe" "$work/PonyNotesNotaryProbe.zip"
+          xcrun notarytool submit "$work/PonyNotesNotaryProbe.zip" \
+            --apple-id "$APPLE_NOTARY_USER" --team-id "$APPLE_TEAM_ID" --password "$APPLE_NOTARY_PASSWORD" \
+            --wait --timeout 6m --output-format json > "$work/notary.json"
+          jq '{id, status, message}' "$work/notary.json"
+          jq -e '.status == "Accepted"' "$work/notary.json" >/dev/null
+
   x86_64:
     # macos-13(最后一代 Intel 免费镜像)已于 2026 退役,GitHub 提供 macos-15-intel
     # 作为 Intel 构建的过渡标签(见 actions/runner-images README)
