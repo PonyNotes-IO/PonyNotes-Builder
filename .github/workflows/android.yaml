@@ -26,6 +26,14 @@ on:
         options:
           - "apk"
           - "appbundle"
+      arch:
+        type: choice
+        description: "APK architecture"
+        default: "All"
+        options:
+          - "All"
+          - "arm64"
+          - "universal"
       internal_build:
         type: choice
         description: "Internal Build Type (1 for internal, 0 for external)"
@@ -74,6 +82,7 @@ jobs:
   # arm64 job: 仅 arm64-v8a
   # ============================================================
   arm64:
+    if: inputs.arch != 'universal'
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
@@ -285,6 +294,7 @@ jobs:
           [ -f "$CXX_SRC" ] || { find "${ANDROID_NDK_HOME}" -name libc++_shared.so -path "*aarch64*" | head; exit 1; }
           mkdir -p "$CXX_DST" && cp "$CXX_SRC" "$CXX_DST/"
           cd appflowy_flutter
+          sed -i 's|https://storage.flutter-io.cn/download.flutter.io|https://storage.googleapis.com/download.flutter.io|' android/build.gradle
           flutter build apk --target-platform android-arm64 --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
 
       - name: Verify APK native libraries
@@ -365,6 +375,7 @@ jobs:
   # universal job: arm64-v8a + armeabi-v7a 兼容包
   # ============================================================
   universal:
+    if: inputs.arch != 'arm64'
     runs-on: ubuntu-latest
     timeout-minutes: 150
 
@@ -579,6 +590,7 @@ jobs:
           mkdir -p "$CXX_DST_V7A" && cp "$CXX_SRC_V7A" "$CXX_DST_V7A/"
           ls -lh appflowy_flutter/android/app/src/main/jniLibs/*/
           cd appflowy_flutter
+          sed -i 's|https://storage.flutter-io.cn/download.flutter.io|https://storage.googleapis.com/download.flutter.io|' android/build.gradle
           flutter build apk --target-platform android-arm64,android-arm --build-name ${{ inputs.build_name }} --build-number ${{ inputs.build_number }} --split-debug-info=./debug_info --obfuscate
 
       - name: Verify APK native libraries
