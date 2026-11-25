@@ -72,7 +72,7 @@ env:
 jobs:
   notary_check:
     if: inputs.arch == 'notary_check'
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 12
     permissions:
       contents: read
