@@ -114,7 +114,7 @@ jobs:
   x86_64:
     # macos-13(最后一代 Intel 免费镜像)已于 2026 退役,GitHub 提供 macos-15-intel
     # 作为 Intel 构建的过渡标签(见 actions/runner-images README)
-    runs-on: macos-15-intel
+    runs-on: ${{ inputs.arch == 'x86_64' && 'macos-15' || 'macos-15-intel' }}
     # 防止任一步骤卡死后跑满 GitHub 上限（曾出现 #33 跑满 24 小时）。
     # Intel runner 比 M 系列慢约一倍,构建步骤内置 180 分钟 watchdog,job 上限给 200。
     timeout-minutes: 200
