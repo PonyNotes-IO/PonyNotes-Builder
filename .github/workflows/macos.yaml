@@ -239,6 +239,18 @@ jobs:
           components: rustfmt
           profile: minimal
 
+      - name: Prepare Cargokit Rust targets
+        shell: bash
+        run: |
+          # Cargokit uses its own stable toolchain for the macOS Pods.
+          for attempt in 1 2 3; do
+            if rustup target add --toolchain stable aarch64-apple-darwin x86_64-apple-darwin; then
+              exit 0
+            fi
+            sleep "$((attempt * 5))"
+          done
+          exit 1
+
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: macos-x86_64
@@ -684,6 +696,18 @@ jobs:
           components: rustfmt
           profile: minimal
 
+      - name: Prepare Cargokit Rust targets
+        shell: bash
+        run: |
+          # Cargokit uses its own stable toolchain for the macOS Pods.
+          for attempt in 1 2 3; do
+            if rustup target add --toolchain stable aarch64-apple-darwin x86_64-apple-darwin; then
+              exit 0
+            fi
+            sleep "$((attempt * 5))"
+          done
+          exit 1
+
       - uses: Swatinem/rust-cache@v2
         with:
           # 与旧 macos-latest 缓存隔离，避免跨 macOS/Xcode 大版本复用 rlib。
@@ -1117,6 +1141,18 @@ jobs:
         run: |
           rustup target add aarch64-apple-darwin
           rustup target add x86_64-apple-darwin
+
+      - name: Prepare Cargokit Rust targets
+        shell: bash
+        run: |
+          # Cargokit uses its own stable toolchain for the macOS Pods.
+          for attempt in 1 2 3; do
+            if rustup target add --toolchain stable aarch64-apple-darwin x86_64-apple-darwin; then
+              exit 0
+            fi
+            sleep "$((attempt * 5))"
+          done
+          exit 1
 
       - uses: Swatinem/rust-cache@v2
         with:
